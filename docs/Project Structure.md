@@ -1,40 +1,47 @@
 StudentManagementSystem/
-├── assets/                  # Images, icons, and system logos for UI design
+├── assets/                  # UI assets like images and icons
 │   ├── images/
 │   └── icons/
-├── data/                    # CSV templates for importing data (FR-18, UC15)
-├── docs/                    # Requirements and design documents
-├── src/                     # Main source code of the application
-│   ├── main.py              # Entry point to start the app
-│   ├── config.py            # Loads settings and environment variables
-│   ├── database/            # Manages MySQL database connections (NFR-18)
+├── data/                    # Templates for bulk data import (e.g., students.csv)
+├── docs/                    # Official Requirements and Design documentation
+├── src/                     # Core application source code
+│   ├── main.py              # Application entry point
+│   ├── config.py            # Global settings and environment loader
+│   ├── database/            # MySQL storage management
 │   │   ├── __init__.py
-│   │   ├── connection.py    # Class to handle DB connection logic
-│   │   └── schema.sql       # SQL script to create tables based on Data Model
-│   ├── models/              # Defines OOP entities (Class Diagram p. 34)
+│   │   ├── connection.py    # Handles database connection sessions
+│   │   └── schema.sql       # SQL scripts to build the database tables
+│   ├── models/              # OOP Entity definitions
 │   │   ├── __init__.py
-│   │   ├── user.py          # Parent User class (Common Module)
+│   │   ├── user.py          # Base User class (Common Module)
 │   │   ├── student.py       # Student class inheriting from User
 │   │   ├── lecturer.py      # Lecturer class inheriting from User
-│   │   └── academic.py      # Classes for Course, Semester, Class, and Grade
-│   ├── views/               # User Interfaces (Interface Design p. 35-52)
+│   │   └── academic/        # Sub-package for school-related entities
+│   │       ├── __init__.py
+│   │       ├── department.py   # Department information
+│   │       ├── semester.py     # Academic terms and dates
+│   │       ├── course.py       # Course catalog details (Credits, etc.)
+│   │       ├── course_class.py # Specific class sections and schedules
+│   │       ├── grade.py        # Student scores and GPA calculations
+│   │       └── announcement.py # System notifications and alerts
+│   ├── views/               # GUI layers separated by user role
 │   │   ├── __init__.py
-│   │   ├── components/      # Shared UI widgets (Buttons, Tables, Headers)
-│   │   ├── auth/            # Login and Forgot Password screens
-│   │   ├── student/         # Student Dashboard, Schedule, and Grades UI
-│   │   ├── lecturer/        # Lecturer Dashboard, Grading, and Roster UI
-│   │   └── admin/           # Admin Dashboard and User Management UI
-│   ├── controllers/         # Handles logic; bridges Models and Views
+│   │   ├── components/      # Reusable UI widgets (custom buttons, inputs)
+│   │   ├── auth/            # Login, Forgot, and Change Password screens
+│   │   ├── student/         # Dashboard, Schedule, and Result interfaces
+│   │   ├── lecturer/        # Grading and Roster management screens
+│   │   └── admin/           # System administration and data management
+│   ├── controllers/         # Bridges logic between Models and Views
 │   │   ├── __init__.py
 │   │   ├── auth_controller.py
 │   │   ├── student_controller.py
 │   │   ├── lecturer_controller.py
 │   │   └── admin_controller.py
-│   └── utils/               # Shared helper tools
+│   └── utils/               # Shared helper functions
 │       ├── __init__.py
-│       ├── email_service.py # Email handling (Resend/SMTP) (FR-04, UC04)
-│       ├── security.py      # Password hashing and session logic (FR-03, NFR-09)
-│       └── validators.py    # Checks if input data is valid (FR-06)
-├── tests/                   # Folder for Unit and Integration tests
-├── requirements.txt         # List of libraries to install (mysql-connector, etc.)
-└── .env                     # Private file for secret keys and DB info (NFR-09)
+│       ├── email_service.py # Password recovery email handler
+│       ├── security.py      # Encryption and hashing for passwords
+│       └── validators.py    # Data format validation (email, phone, etc.)
+├── tests/                   # Automated tests for each module
+├── requirements.txt         # Required Python packages (mysql-connector, etc.)
+└── .env                     # Private environment variables

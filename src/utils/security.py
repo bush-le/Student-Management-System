@@ -1,6 +1,7 @@
 import hashlib
 import re
 import uuid
+import random
 
 class Security:
     """
@@ -43,8 +44,8 @@ class Security:
         return all([has_upper, has_lower, has_digit, has_special])
 
     @staticmethod
-    def generate_reset_token():
+    def generate_otp():
         """
-        FR-04: Generate random token for Forgot Password function [cite: 52].
+        FR-04: Generate a 6-digit numeric OTP for password recovery.
         """
-        return str(uuid.uuid4())
+        return str(random.randint(100000, 999999))

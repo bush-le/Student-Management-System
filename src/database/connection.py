@@ -39,18 +39,24 @@ class DatabaseConnection:
     @contextmanager
     def get_cursor(cls, dictionary=True):
         """
-        A context manager to safely handle database connections and cursors.
-        It automatically gets a connection from the pool and returns it
-        after use, even if an error occurs.
+        A context manager to safely handle database connections, cursors, and transactions.
+        It automatically commits on success, rolls back on error, and always
+        returns the connection to the pool.
 
         Usage:
             with DatabaseConnection.get_cursor() as cursor:
-                cursor.execute("SELECT * FROM ...")
+                cursor.execute("UPDATE ...") # Writes are automatically committed.
         """
         connection = None
         try:
             connection = cls.get_connection()
-            yield connection.cursor(dictionary=dictionary)
+            cursor = connection.cursor(dictionary=dictionary)
+            yield cursor
+            connection.commit()  # Commit transaction if block executes successfully
+        except Exception as e:
+            if connection:
+                connection.rollback()  # Rollback on any error within the block
+            raise e  # Re-raise the exception to the caller
         finally:
             if connection:
                 connection.close()  # This returns the connection to the pool

@@ -1,17 +1,8 @@
 import mysql.connector
 from mysql.connector import pooling
-import os
-from dotenv import load_dotenv
+from contextlib import contextmanager
+from config import Config
 
-load_dotenv()
-
-class Config:
-    DB_HOST = os.getenv("MYSQLHOST") or os.getenv("DB_HOST", "localhost")
-    DB_PORT = int(os.getenv("MYSQLPORT") or os.getenv("DB_PORT", "3306"))
-    DB_USER = os.getenv("MYSQLUSER") or os.getenv("DB_USER", "root")
-    DB_PASSWORD = os.getenv("MYSQLPASSWORD") or os.getenv("DB_PASSWORD", "password")
-    DB_NAME = os.getenv("MYSQLDATABASE") or os.getenv("DB_NAME", "student_management_db")
-    SECRET_KEY = os.getenv("SECRET_KEY", "dev_secret_key_do_not_use_in_prod")
 
 class DatabaseConnection:
     """
@@ -43,6 +34,26 @@ class DatabaseConnection:
         """Gets a connection from the pool."""
         pool = cls.get_pool()
         return pool.get_connection()
+
+    @classmethod
+    @contextmanager
+    def get_cursor(cls, dictionary=True):
+        """
+        A context manager to safely handle database connections and cursors.
+        It automatically gets a connection from the pool and returns it
+        after use, even if an error occurs.
+
+        Usage:
+            with DatabaseConnection.get_cursor() as cursor:
+                cursor.execute("SELECT * FROM ...")
+        """
+        connection = None
+        try:
+            connection = cls.get_connection()
+            yield connection.cursor(dictionary=dictionary)
+        finally:
+            if connection:
+                connection.close()  # This returns the connection to the pool
 
 # This block allows the file to be run directly to test the database connection.
 if __name__ == "__main__":

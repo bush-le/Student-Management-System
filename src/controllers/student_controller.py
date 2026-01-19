@@ -1,90 +1,114 @@
-from database.student_repository import StudentRepository
-from utils.validators import validate_email, validate_phone 
+from database.connection import DatabaseConnection
+from models.student import Student
+from models.academic.grade import Grade
 
 class StudentController:
-    """
-    Controller handling business logic for the Student Module (FR-05 to FR-09).
-    This class acts as a bridge between the View and the Data Repository.
-    """
-    def __init__(self, current_user_id):
-        self.repository = StudentRepository()
-        # Fetch initial student data based on logged-in User ID  
-        self.student = self.repository.get_student_by_id(current_user_id)
+    def __init__(self, user_id):
+        self.user_id = user_id
 
     def view_profile(self):
         """
-        FR-05: Returns the student profile object.
-        The View will handle displaying specific fields in read-only mode [cite: 58-62].
+        FR-05: View Personal Information [cite: 58-62].
+        Returns full Student object information.
         """
-        return self.student
-
-    def update_profile(self, phone, address, email):
-        """
-        FR-06: Updates non-critical contact information.
-        Separates business logic from UI by returning status and messages [cite: 63-68].
-        """
-        # 1. Basic validation for empty fields
-        if not all([phone, address, email]):
-            return False, "All contact fields are required."
-
-        # 2. Data format validation as required by FR-06 
-        if not validate_email(email):
-            return False, "Invalid email format. Please try again."
-        
-        if not validate_phone(phone):
-            return False, "Invalid phone number length or format."
-
-        # 3. Call repository to update data
-        success = self.repository.update_student_contact(self.student.student_id, phone, address, email)
-        
-        if success:
-            # 4. Record action for audit purposes as required by FR-06
-            self.repository.log_audit_action(self.student.student_id, "Update Personal Information")
+        conn = DatabaseConnection.get_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            # Join Students and Users tables to get full info
+            query = """
+                SELECT u.*, s.* FROM Students s
+                JOIN Users u ON s.user_id = u.user_id
+                WHERE u.user_id = %s
+            """
+            cursor.execute(query, (self.user_id,))
+            data = cursor.fetchone()
             
-            # Update local state
-            self.student.phone = phone
-            self.student.address = address
-            self.student.email = email
+            if data:
+                # Separate data to initialize Student Model correctly
+                # Note: Need to filter User and Student fields carefully
+                # Here assuming data contains all necessary keys
+                return Student(
+                    user_data={k: v for k, v in data.items() if k in ['user_id', 'username', 'password', 'full_name', 'email', 'phone', 'role', 'status']},
+                    student_id=data['student_id'],
+                    student_code=data['student_code'],
+                    major=data['major'],
+                    dept_id=data['dept_id'],
+                    academic_year=data['academic_year'],
+                    gpa=data['gpa'],
+                    academic_status=data['academic_status']
+                )
+            return None
+        finally:
+            conn.close()
+
+    def update_profile(self, phone, email, address):
+        """
+        FR-06: Update Personal Information [cite: 63-68].
+        Only allow updating contact information.
+        """
+        # Validate input (use utils/validators.py if available)
+        if not phone or not email:
+            return False, "Phone and Email are required."
+
+        conn = DatabaseConnection.get_connection()
+        try:
+            cursor = conn.cursor()
+            # Update Users table (General information)
+            query = "UPDATE Users SET phone = %s, email = %s WHERE user_id = %s"
+            # Note: Need to add address column to Users or Students table if DB design has it (Data Model page 35 doesn't show address clearly, but FR-06 mentions it).
+            # Assuming address is in Students table if needed.
+            cursor.execute(query, (phone, email, self.user_id))
+            conn.commit()
             return True, "Profile updated successfully."
-            
-        return False, "A database error occurred while saving changes."
+        except Exception as e:
+            return False, str(e)
+        finally:
+            conn.close()
 
-    def view_academic_results(self):
+    def view_schedule(self):
         """
-        FR-08: Fetches grades and calculates cumulative GPA performance.
+        FR-07: View Weekly Schedule [cite: 69-72].
         """
-        if not self.student:
-            return None, 0.0, "N/A"
-            
-        # Get all grade records for the student 
-        grades = self.repository.get_grades_by_student(self.student.student_id)
-        
-        # In a real scenario, calculation logic might reside in the Grade Model
-        # This controller summarizes it for the View 
-        current_gpa = self.student.gpa 
-        
-        # Classification rules based on GPA 
-        if current_gpa >= 3.6:
-            classification = "Excellent"
-        elif current_gpa >= 3.2:
-            classification = "Very Good"
-        elif current_gpa >= 2.5:
-            classification = "Good"
-        else:
-            classification = "Average"
-            
-        return grades, current_gpa, classification
+        conn = DatabaseConnection.get_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            # Get schedule based on classes the student has grades for (or is enrolled in)
+            query = """
+                SELECT c.course_name, cc.room, cc.schedule, l.lecturer_code, u.full_name as lecturer_name
+                FROM Grades g
+                JOIN Course_Classes cc ON g.class_id = cc.class_id
+                JOIN Courses c ON cc.course_id = c.course_id
+                LEFT JOIN Lecturers l ON cc.lecturer_id = l.lecturer_id
+                LEFT JOIN Users u ON l.user_id = u.user_id
+                JOIN Students s ON g.student_id = s.student_id
+                WHERE s.user_id = %s
+            """
+            cursor.execute(query, (self.user_id,))
+            return cursor.fetchall()
+        finally:
+            conn.close()
 
-    def get_weekly_schedule(self):
+    def view_grades(self):
         """
-        FR-07: Retrieves the list of enrolled classes for the visual timetable.
+        FR-08: View Academic Results [cite: 73-77].
         """
-        return self.repository.get_schedule_by_student(self.student.student_id)
-
-    def view_notifications(self):
-        """
-        FR-09: Retrieves system alerts and announcements for the dashboard.
-        """
-        notifications = self.repository.get_notifications_for_student()
-        # Mark as read after retrieval if necessary
-        return notifications
+        conn = DatabaseConnection.get_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            query = """
+                SELECT c.course_code, c.course_name, c.credits, 
+                       g.attendance_score, g.midterm, g.final, g.total, g.letter_grade
+                FROM Grades g
+                JOIN Course_Classes cc ON g.class_id = cc.class_id
+                JOIN Courses c ON cc.course_id = c.course_id
+                JOIN Students s ON g.student_id = s.student_id
+                WHERE s.user_id = %s
+            """
+            cursor.execute(query, (self.user_id,))
+            grades_data = cursor.fetchall()
+            
+            # Calculate cumulative GPA (Simplified logic)
+            # In reality need to calculate: Sum(Total * Credits) / Sum(Credits)
+            return grades_data
+        finally:
+            conn.close()

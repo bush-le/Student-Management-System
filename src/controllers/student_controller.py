@@ -65,6 +65,24 @@ class StudentController:
         finally:
             conn.close()
 
+    def update_contact_info(self, email, phone, address):
+        """Cập nhật thông tin liên hệ của sinh viên"""
+        conn = DatabaseConnection.get_connection()
+        try:
+            cursor = conn.cursor()
+            query = """
+                UPDATE Users 
+                SET email = %s, phone = %s, address = %s 
+                WHERE user_id = %s
+            """
+            cursor.execute(query, (email, phone, address, self.user_id))
+            conn.commit()
+            return True, "Profile updated successfully!"
+        except Exception as e:
+            return False, f"Update failed: {str(e)}"
+        finally:
+            conn.close()
+
     def view_schedule(self):
         """
         FR-07: View Weekly Schedule [cite: 69-72].

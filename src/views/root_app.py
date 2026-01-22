@@ -1,31 +1,37 @@
 import customtkinter as ctk
 from views.auth.login_window import LoginView
 from views.student.dashboard import StudentDashboard
+from views.lecturer.dashboard import LecturerDashboard
+from views.admin.dashboard import AdminDashboard
 
 class RootApp(ctk.CTk):
     def __init__(self):
         super().__init__()
-
-        self.title("Student Management System - Group 01")
-        self.geometry("1280x720")
+        self.title("Student Management System")
+        self.geometry("1200x700")
         
-        self.container = ctk.CTkFrame(self)
-        self.container.pack(fill="both", expand=True)
-        
-        # Start with Login screen
+        self.current_frame = None
         self.show_login()
 
+    def clear_window(self):
+        if self.current_frame:
+            self.current_frame.destroy()
+            self.current_frame = None
+
     def show_login(self):
-        self._clear_frame()
-        login_screen = LoginView(self.container, self)
-        login_screen.pack(fill="both", expand=True)
+        self.clear_window()
+        self.current_frame = LoginView(self, self)
+        self.current_frame.pack(fill="both", expand=True)
 
-    def show_student_dashboard(self, user):
-        self._clear_frame()
-        # Pass user object to dashboard
-        dashboard = StudentDashboard(self.container, self, user)
-        dashboard.pack(fill="both", expand=True)
-
-    def _clear_frame(self):
-        for widget in self.container.winfo_children():
-            widget.destroy()
+    def show_dashboard(self, user):
+        self.clear_window()
+        
+        if user.role == "Student":
+            self.current_frame = StudentDashboard(self, self, user)
+        elif user.role == "Lecturer":
+            self.current_frame = LecturerDashboard(self, self, user)
+        elif user.role == "Admin":
+            self.current_frame = AdminDashboard(self, self, user)
+            
+        if self.current_frame:
+            self.current_frame.pack(fill="both", expand=True)

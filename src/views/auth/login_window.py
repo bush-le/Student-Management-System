@@ -98,8 +98,7 @@ class LoginView(ctk.CTkFrame):
         user, msg = self.auth_controller.login(email, pwd)
         
         if user and "successful" in msg.lower():
-            if user.role == "Student": self.app.show_student_dashboard(user)
-            else: messagebox.showinfo("Success", f"Login as {user.role}")
+            self.app.show_dashboard(user)
         else:
             error_text = msg
             if user and "password" in msg.lower():
@@ -115,8 +114,18 @@ class LoginView(ctk.CTkFrame):
         demo_frame = ctk.CTkFrame(parent, fg_color="transparent")
         demo_frame.grid(row=9, column=0, pady=20)
         ctk.CTkLabel(demo_frame, text="Demo:", text_color="gray", font=("Arial", 10)).pack(side="left")
+        
+        # Student Demo
         ctk.CTkButton(demo_frame, text="Student", height=25, width=60, fg_color="#E9C46A", text_color="black",
                      command=lambda: self.fill_login("student@test.com", "Test123!")).pack(side="left", padx=5)
+        
+        # Lecturer Demo
+        ctk.CTkButton(demo_frame, text="Lecturer", height=25, width=60, fg_color="#2A9D8F", text_color="white",
+                     command=lambda: self.fill_login("lecturer@test.com", "Test123!")).pack(side="left", padx=5)
+
+        # Admin Demo
+        ctk.CTkButton(demo_frame, text="Admin", height=25, width=60, fg_color="#E76F51", text_color="white",
+                     command=lambda: self.fill_login("admin@test.com", "Test123!")).pack(side="left", padx=5)
 
     def fill_login(self, email, pwd):
         self.email_entry.delete(0, 'end'); self.email_entry.insert(0, email)

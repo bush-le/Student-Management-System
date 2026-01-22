@@ -55,14 +55,16 @@ class LecturersFrame(ctk.CTkFrame):
         for i, w in enumerate(weights): row.grid_columnconfigure(i, weight=w)
 
         # Data Cells
-        ctk.CTkLabel(row, text=data['lecturer_code'], font=("Arial", 12, "bold"), text_color="#333", anchor="w").grid(row=0, column=0, sticky="ew", padx=10, pady=15)
-        ctk.CTkLabel(row, text=data['full_name'], anchor="w").grid(row=0, column=1, sticky="ew", padx=10)
-        ctk.CTkLabel(row, text=data['email'], text_color="gray", anchor="w").grid(row=0, column=2, sticky="ew", padx=10)
-        ctk.CTkLabel(row, text=data['phone'], text_color="gray", anchor="w").grid(row=0, column=3, sticky="ew", padx=10)
-        ctk.CTkLabel(row, text=data.get('dept_name', 'N/A'), anchor="w").grid(row=0, column=4, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=data.lecturer_code, font=("Arial", 12, "bold"), text_color="#333", anchor="w").grid(row=0, column=0, sticky="ew", padx=10, pady=15)
+        ctk.CTkLabel(row, text=data.full_name, anchor="w").grid(row=0, column=1, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=data.email, text_color="gray", anchor="w").grid(row=0, column=2, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=data.phone, text_color="gray", anchor="w").grid(row=0, column=3, sticky="ew", padx=10)
+        
+        dept = data.dept_name if data.dept_name else 'N/A'
+        ctk.CTkLabel(row, text=dept, anchor="w").grid(row=0, column=4, sticky="ew", padx=10)
         
         # Degree Badge (M.Sc, Ph.D...)
-        ctk.CTkLabel(row, text=data['degree'], font=("Arial", 11), text_color="#555", anchor="w").grid(row=0, column=5, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=data.degree, font=("Arial", 11), text_color="#555", anchor="w").grid(row=0, column=5, sticky="ew", padx=10)
 
         # Actions
         actions = ctk.CTkFrame(row, fg_color="transparent")
@@ -71,7 +73,7 @@ class LecturersFrame(ctk.CTkFrame):
         ctk.CTkButton(actions, text="✎", width=30, fg_color="transparent", text_color=self.COLOR_EDIT, hover_color="#EFF6FF", 
                       font=("Arial", 16), command=lambda: self.open_edit_dialog(data)).pack(side="left")
         ctk.CTkButton(actions, text="🗑", width=30, fg_color="transparent", text_color=self.COLOR_DELETE, hover_color="#FEF2F2", 
-                      font=("Arial", 16), command=lambda: self.delete_item(data['lecturer_id'])).pack(side="left")
+                      font=("Arial", 16), command=lambda: self.delete_item(data.lecturer_id)).pack(side="left")
 
         ctk.CTkFrame(self.scroll_area, height=1, fg_color="#F3F4F6").pack(fill="x")
 
@@ -130,12 +132,12 @@ class LecturerDialog(ctk.CTkToplevel):
 
         # Fill Data if Edit
         if data:
-            self.ent_id.insert(0, data['lecturer_code'])
-            self.ent_name.insert(0, data['full_name'])
-            self.ent_email.insert(0, data['email'])
-            self.ent_phone.insert(0, data['phone'])
-            self.combo_dept.set(data.get('dept_name', 'Computer Science'))
-            self.ent_degree.delete(0, 'end'); self.ent_degree.insert(0, data['degree'])
+            self.ent_id.insert(0, data.lecturer_code)
+            self.ent_name.insert(0, data.full_name)
+            self.ent_email.insert(0, data.email)
+            self.ent_phone.insert(0, data.phone)
+            self.combo_dept.set(data.dept_name if data.dept_name else 'Computer Science')
+            self.ent_degree.delete(0, 'end'); self.ent_degree.insert(0, data.degree)
             
             self.ent_id.configure(state="disabled") # Không sửa ID
 
@@ -156,7 +158,7 @@ class LecturerDialog(ctk.CTkToplevel):
 
         if self.data: # Update
             success, msg = self.controller.update_lecturer(
-                self.data['lecturer_id'], self.ent_name.get(), self.ent_email.get(), 
+                self.data.lecturer_id, self.ent_name.get(), self.ent_email.get(), 
                 self.ent_phone.get(), dept_id, self.ent_degree.get()
             )
         else: # Create

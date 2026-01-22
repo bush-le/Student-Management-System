@@ -74,11 +74,11 @@ class SemestersFrame(ctk.CTkFrame):
         row.grid_columnconfigure(3, weight=1)
         row.grid_columnconfigure(4, weight=1)
 
-        ctk.CTkLabel(row, text=data['name'], font=("Arial", 12, "bold"), text_color="#333").grid(row=0, column=0, sticky="w", padx=20, pady=15)
-        ctk.CTkLabel(row, text=str(data['start_date']), text_color="#555").grid(row=0, column=1)
-        ctk.CTkLabel(row, text=str(data['end_date']), text_color="#555").grid(row=0, column=2)
+        ctk.CTkLabel(row, text=data.name, font=("Arial", 12, "bold"), text_color="#333").grid(row=0, column=0, sticky="w", padx=20, pady=15)
+        ctk.CTkLabel(row, text=str(data.start_date), text_color="#555").grid(row=0, column=1)
+        ctk.CTkLabel(row, text=str(data.end_date), text_color="#555").grid(row=0, column=2)
 
-        status = data['status'].upper()
+        status = data.status.upper()
         bg_col = "#DCFCE7" if status == "OPEN" else "#F3F4F6"
         text_col = "#166534" if status == "OPEN" else "#4B5563"
         
@@ -92,7 +92,7 @@ class SemestersFrame(ctk.CTkFrame):
         ctk.CTkButton(actions, text="✎", width=30, fg_color="transparent", text_color="gray", hover_color="#EFF6FF", 
                       font=("Arial", 16), command=lambda: self.open_edit_dialog(data)).pack(side="left", padx=2)
         ctk.CTkButton(actions, text="🗑", width=30, fg_color="transparent", text_color="gray", hover_color="#FEF2F2", 
-                      font=("Arial", 16), command=lambda: self.delete_item(data['semester_id'])).pack(side="left", padx=2)
+                      font=("Arial", 16), command=lambda: self.delete_item(data.semester_id)).pack(side="left", padx=2)
 
         ctk.CTkFrame(self.scroll_area, height=1, fg_color="#F3F4F6").pack(fill="x")
 
@@ -168,10 +168,10 @@ class SemesterDialog(ctk.CTkToplevel):
 
         # Fill Data if Edit
         if data:
-            self.entry_name.insert(0, data['name'])
-            self.entry_start.insert(0, str(data['start_date']))
-            self.entry_end.insert(0, str(data['end_date']))
-            self.combo_status.set(data['status'])
+            self.entry_name.insert(0, data.name)
+            self.entry_start.insert(0, str(data.start_date))
+            self.entry_end.insert(0, str(data.end_date))
+            self.combo_status.set(data.status)
 
         # --- FIX LỖI: Đợi 100ms để cửa sổ hiện lên rồi mới grab ---
         self.lift()
@@ -196,7 +196,7 @@ class SemesterDialog(ctk.CTkToplevel):
 
         # Gọi controller
         if self.data: # Update
-            success, msg = self.controller.update_semester(self.data['semester_id'], name, start, end, status)
+            success, msg = self.controller.update_semester(self.data.semester_id, name, start, end, status)
         else: # Create
             success, msg = self.controller.create_semester(name, start, end)
         

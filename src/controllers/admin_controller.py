@@ -15,6 +15,7 @@ from models.academic.course_class import CourseClass
 from models.academic.announcement import Announcement
 
 from utils.security import Security
+from utils.validators import Validators
 
 class AdminController:
     def __init__(self, user_id):
@@ -36,6 +37,12 @@ class AdminController:
         return self.student_repo.get_all()
 
     def create_student(self, full_name, email, phone, student_code, dept_id, major, year):
+        if not Validators.is_valid_email(email):
+            return False, "Invalid email format"
+        
+        if not Validators.is_valid_phone(phone):
+            return False, "Invalid phone number format"
+
         hashed_pw = Security.hash_password("123")
         new_student = Student(
             user_data={"user_id": None, "username": student_code, "full_name": full_name, "email": email, "phone": phone, "role": "Student", "status": "ACTIVE"},
@@ -44,6 +51,9 @@ class AdminController:
         return self.student_repo.add(new_student, hashed_pw)
 
     def update_student(self, student_id, full_name, email, dept_id, status):
+        if not Validators.is_valid_email(email):
+            return False, "Invalid email format"
+            
         student = self.student_repo.get_by_id(student_id)
         if not student: return False, "Not found"
         student.full_name = full_name
@@ -55,6 +65,27 @@ class AdminController:
     def delete_student(self, student_id):
         return self.student_repo.delete(student_id)
 
+    def import_students_csv(self, file_path):
+        import csv
+        students = []
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    # Validate row data here if needed
+                    students.append({
+                        'code': row['StudentCode'],
+                        'name': row['FullName'],
+                        'email': row['Email'],
+                        'major': row.get('Major', 'N/A')
+                    })
+            
+            if not students: return False, "Empty CSV file"
+            
+            return self.student_repo.bulk_add(students)
+        except Exception as e:
+            return False, f"CSV Error: {str(e)}"
+
     # =========================================================================
     # 2. LECTURER MANAGEMENT
     # =========================================================================
@@ -62,6 +93,12 @@ class AdminController:
         return self.lecturer_repo.get_all()
 
     def create_lecturer(self, lecturer_code, full_name, email, phone, dept_id, degree):
+        if not Validators.is_valid_email(email):
+            return False, "Invalid email format"
+        
+        if not Validators.is_valid_phone(phone):
+            return False, "Invalid phone number format"
+
         hashed_pw = Security.hash_password("123")
         new_lec = Lecturer(
             user_data={"user_id": None, "username": lecturer_code, "full_name": full_name, "email": email, "phone": phone, "role": "Lecturer", "status": "ACTIVE"},
@@ -70,6 +107,12 @@ class AdminController:
         return self.lecturer_repo.add(new_lec, hashed_pw)
 
     def update_lecturer(self, lecturer_id, full_name, email, phone, dept_id, degree):
+        if not Validators.is_valid_email(email):
+            return False, "Invalid email format"
+        
+        if not Validators.is_valid_phone(phone):
+            return False, "Invalid phone number format"
+
         lec = self.lecturer_repo.get_by_id(lecturer_id)
         if not lec: return False, "Not found"
         lec.full_name = full_name

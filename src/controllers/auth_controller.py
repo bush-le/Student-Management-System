@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from database.repositories.user_repo import UserRepository
 from utils.security import Security
 from utils.email_service import EmailService
+from utils.validators import Validators
 
 class AuthController:
     def __init__(self):
@@ -75,6 +76,9 @@ class AuthController:
 
     def request_password_reset(self, email):
         """Gửi OTP quên mật khẩu"""
+        if not Validators.is_valid_email(email):
+            return False, "Invalid email format."
+
         user = self.user_repo.get_by_email(email)
         if not user:
             # Fake success để tránh lộ email (Security Best Practice)

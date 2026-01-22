@@ -36,3 +36,29 @@ class RootApp(ctk.CTk):
             
         if self.current_frame:
             self.current_frame.pack(fill="both", expand=True)
+
+    def on_login_success(self, user):
+        """
+        user: Là Object User (src.models.user.User)
+        """
+        self.current_user = user
+        # self.login_window might not be set if show_login creates LoginView directly into self.current_frame
+        # Assuming show_dashboard handles the clearing and setting of the main view
+        
+        # Điều hướng dựa trên user.role (Object attribute)
+        if user.role == 'Admin':
+            from views.admin.dashboard import AdminDashboard
+            # Truyền user object vào dashboard
+            self.current_frame = AdminDashboard(self, self, user) 
+            
+        elif user.role == 'Student':
+            from views.student.dashboard import StudentDashboard
+            # StudentDashboard thường cần user_id để load data
+            self.current_frame = StudentDashboard(self, self, user) 
+            
+        elif user.role == 'Lecturer':
+            from views.lecturer.dashboard import LecturerDashboard
+            self.current_frame = LecturerDashboard(self, self, user)
+
+        if self.current_frame:
+            self.current_frame.pack(fill="both", expand=True)

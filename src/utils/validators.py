@@ -1,45 +1,49 @@
 import re
 from datetime import datetime
 
-# --- FR-06: Validate Personal Information  ---
-def validate_email(email):
+class Validators:
     """
-    Validate standard email format.
-    Valid example: student@test.com
+    Helper class for validating input data across the application.
     """
-    if not email:
-        return False
-    # Basic regex for email
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    return re.match(pattern, email) is not None
 
-def validate_phone(phone):
-    """
-    Validate phone number: Contains only digits, length 10-11 characters (VN Standard).
-    """
-    if not phone:
-        return False
-    pattern = r'^\d{10,11}$'
-    return re.match(pattern, phone) is not None
+    @staticmethod
+    def is_valid_email(email: str) -> bool:
+        """
+        FR-06: Validate standard email format.
+        """
+        if not email:
+            return False
+        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        return re.match(pattern, email) is not None
 
-# --- FR-12: Validate Grade Input  ---
-def validate_grade_input(score):
-    """
-    Validate score must be a float between 0.0 and 10.0.
-    """
-    try:
-        val = float(score)
-        return 0.0 <= val <= 10.0
-    except (ValueError, TypeError):
-        return False
+    @staticmethod
+    def is_valid_phone(phone: str) -> bool:
+        """
+        FR-06: Validate phone number (VN Standard: 10-11 digits, starts with 0).
+        """
+        if not phone:
+            return False
+        pattern = r'^0\d{9,10}$'
+        return re.match(pattern, phone) is not None
 
-# --- Helper for Admin ---
-def validate_date_format(date_str):
-    """
-    Validate date format (YYYY-MM-DD) for student/semester management functions.
-    """
-    try:
-        datetime.strptime(date_str, '%Y-%m-%d')
-        return True
-    except ValueError:
-        return False
+    @staticmethod
+    def is_valid_grade(score) -> bool:
+        """
+        FR-12: Validate score must be a float between 0.0 and 10.0.
+        """
+        try:
+            val = float(score)
+            return 0.0 <= val <= 10.0
+        except (ValueError, TypeError):
+            return False
+
+    @staticmethod
+    def is_valid_date(date_str: str) -> bool:
+        """
+        Validate date format (YYYY-MM-DD).
+        """
+        try:
+            datetime.strptime(date_str, '%Y-%m-%d')
+            return True
+        except ValueError:
+            return False

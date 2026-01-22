@@ -56,26 +56,26 @@ class ClassesFrame(ctk.CTkFrame):
         for i, w in enumerate(weights): row.grid_columnconfigure(i, weight=w)
 
         # Course Name
-        ctk.CTkLabel(row, text=data['course_name'], font=("Arial", 12, "bold"), text_color="#333", anchor="w").grid(row=0, column=0, sticky="ew", padx=10, pady=15)
+        ctk.CTkLabel(row, text=data.course_name, font=("Arial", 12, "bold"), text_color="#333", anchor="w").grid(row=0, column=0, sticky="ew", padx=10, pady=15)
         
         # Lecturer (Icon + Name)
         lec_frame = ctk.CTkFrame(row, fg_color="transparent")
         lec_frame.grid(row=0, column=1, sticky="w", padx=10)
         ctk.CTkLabel(lec_frame, text="👤", text_color="gray").pack(side="left")
-        lec_name = data['lecturer_name'] if data['lecturer_name'] else "Unassigned"
-        lec_color = "#333" if data['lecturer_name'] else "gray"
+        lec_name = data.lecturer_name if data.lecturer_name else "Unassigned"
+        lec_color = "#333" if data.lecturer_name else "gray"
         ctk.CTkLabel(lec_frame, text=lec_name, text_color=lec_color).pack(side="left", padx=5)
 
         # Schedule
         # DB store: "Monday 10:00-11:30" -> Split to display nicely
-        sched = data.get('schedule', 'TBA')
+        sched = data.schedule if data.schedule else 'TBA'
         ctk.CTkLabel(row, text=sched, text_color="#555", anchor="w").grid(row=0, column=2, sticky="ew", padx=10)
 
         # Room
-        ctk.CTkLabel(row, text=data['room'], text_color="#555", anchor="w").grid(row=0, column=3, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=data.room, text_color="#555", anchor="w").grid(row=0, column=3, sticky="ew", padx=10)
 
         # Capacity (Enrolled / Max)
-        cap_text = f"{data.get('current_enrolled', 0)} / {data['max_capacity']}"
+        cap_text = f"{data.current_enrolled} / {data.max_capacity}"
         ctk.CTkLabel(row, text=cap_text, font=("Arial", 12, "bold"), anchor="w").grid(row=0, column=4, sticky="ew", padx=10)
 
         # Actions
@@ -92,7 +92,7 @@ class ClassesFrame(ctk.CTkFrame):
         
         # Delete Btn
         ctk.CTkButton(actions, text="🗑", width=30, fg_color="transparent", text_color="#EF4444", hover_color="#FEF2F2", 
-                      font=("Arial", 16), command=lambda: self.delete_item(data['class_id'])).pack(side="left")
+                      font=("Arial", 16), command=lambda: self.delete_item(data.class_id)).pack(side="left")
 
         ctk.CTkFrame(self.scroll_area, height=1, fg_color="#F3F4F6").pack(fill="x")
 
@@ -173,14 +173,14 @@ class ClassDialog(ctk.CTkToplevel):
         # Fill Data if Edit
         if data:
             # Set course info (Logic tìm index hơi phức tạp với combobox, ta set text tạm)
-            self.combo_course.set(f"{data['course_code']} - {data['course_name']}")
+            self.combo_course.set(f"{data.course_code} - {data.course_name}")
             self.combo_course.configure(state="disabled") # Không đổi môn khi sửa lớp
             
-            self.ent_room.insert(0, data['room'])
-            self.ent_cap.insert(0, str(data['max_capacity']))
+            self.ent_room.insert(0, data.room)
+            self.ent_cap.insert(0, str(data.max_capacity))
             
             # Parse Schedule "Monday 10:00 - 11:30"
-            sched_parts = data['schedule'].split(' ', 1)
+            sched_parts = data.schedule.split(' ', 1)
             if len(sched_parts) == 2:
                 self.combo_day.set(sched_parts[0])
                 self.ent_time.insert(0, sched_parts[1])
@@ -214,11 +214,11 @@ class ClassDialog(ctk.CTkToplevel):
         courses = self.controller.get_all_courses()
         course_id = next((c['course_id'] for c in courses if c['course_code'] == course_code), None)
 
-        schedule = f"{self.combo_day.get()} {self.ent_time.get()}"
+        schedule = f"{self.combo_day.get()} {self.ent_time.get()}" if self.combo_day.get() and self.ent_time.get() else ""
         
         if self.data: # Update
             success, msg = self.controller.update_class(
-                self.data['class_id'], self.ent_room.get(), schedule, self.ent_cap.get()
+                self.data.class_id, self.ent_room.get(), schedule, self.ent_cap.get()
             )
         else: # Create
             success, msg = self.controller.create_class(
@@ -255,8 +255,8 @@ class AssignLecturerDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(ctx_frame, text="CLASS CONTEXT", font=("Arial", 10, "bold"), text_color="#3B82F6").pack(anchor="w", padx=15, pady=(10, 5))
         
-        self._ctx_row(ctx_frame, "Course", class_data['course_name'], "Time Slot", class_data['schedule'])
-        self._ctx_row(ctx_frame, "Room", class_data['room'], "Capacity", f"{class_data['max_capacity']} Students")
+        self._ctx_row(ctx_frame, "Course", class_data.course_name, "Time Slot", class_data.schedule)
+        self._ctx_row(ctx_frame, "Room", class_data.room, "Capacity", f"{class_data.max_capacity} Students")
         ctk.CTkFrame(ctx_frame, height=10, fg_color="transparent").pack() # Spacer
 
         # 2. Select Lecturer
@@ -265,7 +265,7 @@ class AssignLecturerDialog(ctk.CTkToplevel):
         # Lấy danh sách giảng viên
         lecturers = self.controller.get_all_lecturers()
         # Format: "Name (Code)"
-        self.lec_map = {f"{l['full_name']} ({l['lecturer_code']})": l['lecturer_id'] for l in lecturers}
+        self.lec_map = {f"{l.full_name} ({l.lecturer_code})": l.lecturer_id for l in lecturers}
         
         self.combo_lec = ctk.CTkComboBox(self, values=list(self.lec_map.keys()), width=440, height=40)
         self.combo_lec.pack(padx=30, pady=10)
@@ -305,7 +305,7 @@ class AssignLecturerDialog(ctk.CTkToplevel):
             return
             
         lecturer_id = self.lec_map[selection]
-        success, msg = self.controller.assign_lecturer_to_class(self.class_data['class_id'], lecturer_id)
+        success, msg = self.controller.assign_lecturer_to_class(self.class_data.class_id, lecturer_id)
         
         if success:
             self.callback()

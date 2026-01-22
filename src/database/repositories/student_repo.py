@@ -133,3 +133,41 @@ class StudentRepository(BaseRepository):
             return True, "Profile updated successfully."
         except Exception as e:
             return False, str(e)
+
+    def bulk_add(self, students_list):
+        """
+        students_list: List of dictionaries [{'code': 'S001', 'name': 'A', ...}]
+        """
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        try:
+            conn.start_transaction()
+            count = 0
+            for s in students_list:
+                # 1. Tạo User
+                # Password mặc định là ID sinh viên
+                from utils.security import Security
+                hashed_pw = Security.hash_password(s['code']) 
+                
+                cursor.execute(
+                    "INSERT INTO Users (username, password, full_name, email, role, status) VALUES (%s, %s, %s, %s, 'Student', 'ACTIVE')",
+                    (s['code'], hashed_pw, s['name'], s['email'])
+                )
+                user_id = cursor.lastrowid
+                
+                # 2. Tạo Student
+                # Giả định dept_id = 1 mặc định nếu CSV không có
+                cursor.execute(
+                    "INSERT INTO Students (user_id, student_code, dept_id, major, academic_year, academic_status) VALUES (%s, %s, %s, %s, %s, 'ACTIVE')",
+                    (user_id, s['code'], 1, s.get('major', 'General'), 2024)
+                )
+                count += 1
+            
+            conn.commit()
+            return True, f"Successfully imported {count} students."
+        except Exception as e:
+            conn.rollback()
+            return False, str(e)
+        finally:
+            cursor.close()
+            conn.close()

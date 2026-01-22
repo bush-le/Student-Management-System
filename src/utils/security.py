@@ -1,36 +1,48 @@
-import hashlib
+import bcrypt
+import secrets
+import string
 import re
-import uuid
-import random
 
 class Security:
     """
     Utility class handling security, encryption, and sessions.
+    UPDATED: Uses bcrypt for secure password hashing.
     """
 
     @staticmethod
-    def hash_password(password):
+    def hash_password(password: str) -> str:
         """
         NFR-09: Encrypt password before saving to DB.
-        Uses SHA-256 (Can be upgraded to bcrypt if additional libraries are installed).
+        Uses BCrypt (Salt is automatically handled).
         """
-        # In reality, 'salt' should be added; here using basic SHA256 for the project
-        return hashlib.sha256(password.encode()).hexdigest()
+        # Bcrypt yêu cầu bytes
+        pwd_bytes = password.encode('utf-8')
+        # Tạo salt và hash
+        salt = bcrypt.gensalt()
+        hashed = bcrypt.hashpw(pwd_bytes, salt)
+        # Trả về chuỗi decode để lưu vào Database (VARCHAR)
+        return hashed.decode('utf-8')
 
     @staticmethod
-    def verify_password(stored_hash, provided_password):
+    def verify_password(stored_hash: str, provided_password: str) -> bool:
         """
         Check if the provided password matches the hash in the DB.
         """
-        return stored_hash == hashlib.sha256(provided_password.encode()).hexdigest()
+        if not stored_hash or not provided_password:
+            return False
+            
+        # Chuyển đổi về bytes để so sánh
+        stored_bytes = stored_hash.encode('utf-8')
+        provided_bytes = provided_password.encode('utf-8')
+        
+        # Bcrypt tự trích xuất salt từ stored_hash để so sánh
+        return bcrypt.checkpw(provided_bytes, stored_bytes)
 
     @staticmethod
-    def validate_password_strength(password):
+    def validate_password_strength(password: str) -> bool:
         """
-        FR-03: Check password strength [cite: 43-45].
-        Rules:
-        - Minimum 8 characters.
-        - Contains uppercase, lowercase, digit, and special character.
+        FR-03: Check password strength.
+        Rules: Min 8 chars, Upper, Lower, Digit, Special char.
         """
         if len(password) < 8:
             return False
@@ -38,14 +50,14 @@ class Security:
         has_upper = any(c.isupper() for c in password)
         has_lower = any(c.islower() for c in password)
         has_digit = any(c.isdigit() for c in password)
-        # Special character: not alphanumeric
         has_special = any(not c.isalnum() for c in password)
 
         return all([has_upper, has_lower, has_digit, has_special])
 
     @staticmethod
-    def generate_otp():
+    def generate_otp(length=6) -> str:
         """
-        FR-04: Generate a 6-digit numeric OTP for password recovery.
+        FR-04: Generate a 6-digit numeric OTP securely.
+        Uses 'secrets' module instead of 'random'.
         """
-        return str(random.randint(100000, 999999))
+        return ''.join(secrets.choice(string.digits) for _ in range(length))

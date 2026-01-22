@@ -70,15 +70,17 @@ class StudentsFrame(ctk.CTkFrame):
         for i, w in enumerate(weights): row.grid_columnconfigure(i, weight=w)
 
         # Columns
-        ctk.CTkLabel(row, text=data['student_code'], font=("Arial", 12, "bold"), text_color="#333", anchor="w").grid(row=0, column=0, sticky="ew", padx=10, pady=15)
-        ctk.CTkLabel(row, text=data['full_name'], anchor="w").grid(row=0, column=1, sticky="ew", padx=10)
-        ctk.CTkLabel(row, text=data.get('dept_name', 'N/A'), anchor="w").grid(row=0, column=2, sticky="ew", padx=10)
-        ctk.CTkLabel(row, text=data['email'], text_color="gray", anchor="w").grid(row=0, column=3, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=data.student_code, font=("Arial", 12, "bold"), text_color="#333", anchor="w").grid(row=0, column=0, sticky="ew", padx=10, pady=15)
+        ctk.CTkLabel(row, text=data.full_name, anchor="w").grid(row=0, column=1, sticky="ew", padx=10)
+        
+        dept = data.dept_name if data.dept_name else 'N/A'
+        ctk.CTkLabel(row, text=dept, anchor="w").grid(row=0, column=2, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=data.email, text_color="gray", anchor="w").grid(row=0, column=3, sticky="ew", padx=10)
 
         # Status
-        status = data.get('academic_status', 'Active')
-        color = "#166534" if status == 'Active' else "#991B1B"
-        bg = "#DCFCE7" if status == 'Active' else "#FEE2E2"
+        status = data.academic_status
+        color = "#166534" if status == 'ACTIVE' else "#991B1B"
+        bg = "#DCFCE7" if status == 'ACTIVE' else "#FEE2E2"
         badge = ctk.CTkFrame(row, fg_color=bg, corner_radius=10)
         badge.grid(row=0, column=4)
         ctk.CTkLabel(badge, text=status, font=("Arial", 10, "bold"), text_color=color).pack(padx=8, pady=2)
@@ -95,15 +97,19 @@ class StudentsFrame(ctk.CTkFrame):
                       font=("Arial", 16), command=lambda: self.open_edit_dialog(data)).pack(side="left")
         # Delete Btn
         ctk.CTkButton(actions, text="🗑", width=30, fg_color="transparent", text_color=self.COLOR_DELETE, hover_color="#FEF2F2", 
-                      font=("Arial", 16), command=lambda: self.delete_item(data['student_id'])).pack(side="left")
+                      font=("Arial", 16), command=lambda: self.delete_item(data.student_id)).pack(side="left")
 
         ctk.CTkFrame(self.scroll_area, height=1, fg_color="#F3F4F6").pack(fill="x")
 
     def import_csv(self):
         file_path = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv")])
         if file_path:
-            # Mock CSV Import Logic
-            messagebox.showinfo("Import", f"Selected: {file_path}\n(Bulk import logic will be implemented here)")
+            success, msg = self.controller.import_students_csv(file_path)
+            if success:
+                messagebox.showinfo("Success", msg)
+                self.load_data()
+            else:
+                messagebox.showerror("Error", msg)
 
     def delete_item(self, sid):
         if messagebox.askyesno("Confirm", "Delete this student?"):
@@ -166,12 +172,12 @@ class StudentDialog(ctk.CTkToplevel):
 
         # Fill Data if Edit
         if data:
-            self.ent_name.insert(0, data['full_name'])
-            self.ent_id.insert(0, data['student_code'])
-            self.ent_email.insert(0, data['email'])
+            self.ent_name.insert(0, data.full_name)
+            self.ent_id.insert(0, data.student_code)
+            self.ent_email.insert(0, data.email)
             # Note: DoB, Dept mapping cần logic mapping ID sang tên trong thực tế
-            self.combo_dept.set(data.get('dept_name', 'Computer Science')) 
-            self.combo_status.set(data.get('academic_status', 'Active'))
+            self.combo_dept.set(data.dept_name if data.dept_name else 'Computer Science') 
+            self.combo_status.set(data.academic_status)
             # Nếu edit, có thể disable ID
             self.ent_id.configure(state="disabled")
 
@@ -193,7 +199,7 @@ class StudentDialog(ctk.CTkToplevel):
         
         if self.data: # Update
              success, msg = self.controller.update_student(
-                 self.data['student_id'], self.ent_name.get(), self.ent_email.get(), dept_id, self.combo_status.get()
+                 self.data.student_id, self.ent_name.get(), self.ent_email.get(), dept_id, self.combo_status.get()
              )
         else: # Create
              # Create cần username/password, ở đây demo sẽ auto-gen
@@ -226,10 +232,10 @@ class AcademicRecordDialog(ctk.CTkToplevel):
         header = ctk.CTkFrame(self, fg_color="white")
         header.pack(fill="x", padx=30, pady=20)
         ctk.CTkLabel(header, text="Academic Record", font=("Arial", 18, "bold"), text_color="#333").pack(anchor="w")
-        ctk.CTkLabel(header, text=f"Student: {student_data['full_name']} ({student_data['student_code']})", text_color="gray").pack(anchor="w")
+        ctk.CTkLabel(header, text=f"Student: {student_data.full_name} ({student_data.student_code})", text_color="gray").pack(anchor="w")
 
         # 2. Fetch Data
-        record = controller.get_student_academic_record(student_data['student_id'])
+        record = controller.get_student_academic_record(student_data.student_id)
 
         # 3. Stats Cards
         stats = ctk.CTkFrame(self, fg_color="transparent")

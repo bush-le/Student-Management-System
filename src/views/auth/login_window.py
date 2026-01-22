@@ -77,7 +77,7 @@ class LoginView(ctk.CTkFrame):
         ctk.CTkButton(
             form, text="Sign In", width=320, height=45,
             fg_color="#2A9D8F", hover_color="#238b7e", font=("Arial", 14, "bold"),
-            command=self.handle_login
+            command=self.on_login_click
         ).grid(row=8, column=0, sticky="ew")
 
         # Demo buttons
@@ -90,25 +90,17 @@ class LoginView(ctk.CTkFrame):
         ForgotPasswordView(self.right_frame, self.auth_controller, self.show_login_form).pack(fill="both", expand=True)
 
     # --- LOGIN LOGIC ---
-    def handle_login(self, email=None, pwd=None):
-        self.error_frame.grid_forget()
-        if email is None: email = self.email_entry.get()
-        if pwd is None: pwd = self.pass_entry.get()
-
-        user, msg = self.auth_controller.login(email, pwd)
+    def on_login_click(self):
+        email = self.email_entry.get()
+        password = self.pass_entry.get()
         
-        if user and "successful" in msg.lower():
+        # auth_controller.login trả về (user_obj, message) hoặc (None, message)
+        user, message = self.auth_controller.login(email, password)
+        
+        if user:
             self.app.show_dashboard(user)
         else:
-            error_text = msg
-            if user and "password" in msg.lower():
-                max_attempts = 5
-                attempts_left = max_attempts - user.failed_login_attempts
-                if attempts_left > 0:
-                    error_text = f"Invalid email or password. {attempts_left} attempts remaining."
-            
-            self.error_label.configure(text=error_text)
-            self.error_frame.grid(row=2, column=0, sticky="ew", pady=(0, 15))
+            messagebox.showerror("Login Failed", message)
 
     def create_demo_buttons(self, parent):
         demo_frame = ctk.CTkFrame(parent, fg_color="transparent")
@@ -130,4 +122,4 @@ class LoginView(ctk.CTkFrame):
     def fill_login(self, email, pwd):
         self.email_entry.delete(0, 'end'); self.email_entry.insert(0, email)
         self.pass_entry.delete(0, 'end'); self.pass_entry.insert(0, pwd)
-        self.handle_login(email, pwd)
+        self.on_login_click()

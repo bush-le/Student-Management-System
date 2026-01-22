@@ -1,6 +1,7 @@
 from database.repositories.student_repo import StudentRepository
 from database.repositories.class_repo import ClassRepository
 from database.repositories.grade_repo import GradeRepository
+from utils.validators import Validators
 
 class StudentController:
     def __init__(self, user_id):
@@ -28,6 +29,12 @@ class StudentController:
         """
         if not self.current_student:
             return False, "Student profile not found."
+
+        if not Validators.is_valid_email(email):
+            return False, "Invalid email format."
+            
+        if not Validators.is_valid_phone(phone):
+            return False, "Invalid phone number format."
 
         # Cập nhật dữ liệu vào Object hiện tại
         self.current_student.email = email

@@ -56,22 +56,22 @@ class AnnouncementsFrame(ctk.CTkFrame):
         
         # Icon loa thông báo
         ctk.CTkLabel(r1, text="📢", font=("Arial", 14)).pack(side="left", pady=2)
-        ctk.CTkLabel(r1, text=data['title'], font=("Arial", 13, "bold"), text_color="#333").pack(side="left", padx=10)
+        ctk.CTkLabel(r1, text=data.title, font=("Arial", 13, "bold"), text_color="#333").pack(side="left", padx=10)
 
         # Actions (Edit/Delete)
         ctk.CTkButton(r1, text="✎", width=30, fg_color="transparent", text_color=self.COLOR_EDIT, hover_color="#F3F4F6",
                       command=lambda: self.open_edit_dialog(data)).pack(side="right")
         ctk.CTkButton(r1, text="🗑", width=30, fg_color="transparent", text_color=self.COLOR_DELETE, hover_color="#FEF2F2",
-                      command=lambda: self.delete_item(data['announcement_id'])).pack(side="right", padx=5)
+                      command=lambda: self.delete_item(data.announcement_id)).pack(side="right", padx=5)
 
         # Row 2: Content
-        desc_text = data['content'][:150] + "..." if len(data['content']) > 150 else data['content']
+        desc_text = data.content[:150] + "..." if len(data.content) > 150 else data.content
         ctk.CTkLabel(content, text=desc_text, font=("Arial", 12), text_color="#555", anchor="w", justify="left").pack(fill="x", padx=35, pady=(5, 10))
 
         # Row 3: Date
         r3 = ctk.CTkFrame(content, fg_color="transparent")
         r3.pack(fill="x", padx=35)
-        ctk.CTkLabel(r3, text=str(data['created_date']), font=("Arial", 11), text_color="gray").pack(side="left")
+        ctk.CTkLabel(r3, text=str(data.created_date), font=("Arial", 11), text_color="gray").pack(side="left")
 
     def delete_item(self, ann_id):
         if messagebox.askyesno("Confirm", "Delete this announcement?"):
@@ -131,8 +131,8 @@ class AnnouncementDialog(ctk.CTkToplevel):
 
         # Fill Data
         if data:
-            self.ent_title.insert(0, data['title'])
-            self.txt_content.insert("0.0", data['content'])
+            self.ent_title.insert(0, data.title)
+            self.txt_content.insert("0.0", data.content)
 
         self.lift()
         self.focus_force()
@@ -147,7 +147,7 @@ class AnnouncementDialog(ctk.CTkToplevel):
             return
 
         if self.data: # Update
-            success, msg = self.controller.update_announcement(self.data['announcement_id'], title, content)
+            success, msg = self.controller.update_announcement(self.data.announcement_id, title, content)
         else: # Create
             success, msg = self.controller.create_announcement(title, content, self.user_id)
 

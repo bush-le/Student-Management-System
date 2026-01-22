@@ -85,39 +85,49 @@ class GradesFrame(ctk.CTkFrame):
         # Đường kẻ dưới header
         ctk.CTkFrame(self.table_container, height=1, fg_color="#F3F4F6").grid(row=1, column=0, columnspan=6, sticky="ew", pady=(0, 5))
 
-        # Mock Data (Thay bằng self.controller.view_grades() sau này)
-        mock_data = [
-            {"name": "Introduction to Programming", "att": "9.5", "ass": "8.0", "mid": "8.5", "final": "9.0", "grade": "8.8"},
-            {"name": "Circuit Analysis", "att": "10.0", "ass": "9.0", "mid": "9.5", "final": "9.0", "grade": "9.2"}
-        ]
+        # 1. Gọi Controller
+        data = self.controller.view_grades() 
+        # data trả về: {'transcript': [Grade Objects], 'cumulative_gpa': float}
+        
+        transcript = data.get('transcript', [])
+        
+        if not transcript:
+             ctk.CTkLabel(self.table_container, text="No grades available.", text_color="gray").grid(row=2, column=0, columnspan=6, pady=20)
+             return
 
-        # Vẽ các hàng
+        # 2. Vẽ các hàng từ dữ liệu thật
         row_idx = 2
-        for item in mock_data:
-            self._create_row(row_idx, item)
+        for grade in transcript:
+            self._create_row(row_idx, grade)
             row_idx += 2 # +2 vì có dòng kẻ ngang xen giữa
 
-    def _create_row(self, r, data):
+    def _create_row(self, r, grade_obj):
         # Pady chung cho hàng -> Giảm xuống 8 để các dòng sát nhau hơn
         common_pady = 8
 
-        # 0: Name
+        # 0: Name (grade_obj.course_name được map trong Repo)
+        name = grade_obj.course_name if grade_obj.course_name else "Unknown Course"
         ctk.CTkLabel(
-            self.table_container, text=data['name'], 
+            self.table_container, text=name, 
             font=("Arial", 12, "bold"), text_color="#333"
         ).grid(row=r, column=0, sticky="w", padx=5, pady=common_pady)
 
         # 1-4: Component Scores
-        keys = ['att', 'ass', 'mid', 'final']
-        for i, key in enumerate(keys, start=1):
-            ctk.CTkLabel(
-                self.table_container, text=data[key], 
-                font=("Arial", 12), text_color="gray"
-            ).grid(row=r, column=i, sticky="ew", pady=common_pady)
+        # Helper để hiển thị "-" nếu chưa có điểm
+        def fmt(val): return str(val) if val is not None else "-"
+        
+        ctk.CTkLabel(self.table_container, text=fmt(grade_obj.attendance_score), font=("Arial", 12), text_color="gray").grid(row=r, column=1, sticky="ew", pady=common_pady)
+        
+        # Assignment (Giả sử DB chưa có cột này, để trống hoặc map cột khác)
+        ctk.CTkLabel(self.table_container, text="-", font=("Arial", 12), text_color="gray").grid(row=r, column=2, sticky="ew", pady=common_pady)
+        
+        ctk.CTkLabel(self.table_container, text=fmt(grade_obj.midterm), font=("Arial", 12), text_color="gray").grid(row=r, column=3, sticky="ew", pady=common_pady)
+        ctk.CTkLabel(self.table_container, text=fmt(grade_obj.final), font=("Arial", 12), text_color="gray").grid(row=r, column=4, sticky="ew", pady=common_pady)
 
-        # 5: Final Grade (Màu xanh Teal đậm)
+        # 5: Final Grade (Total)
+        total_text = str(grade_obj.total) if grade_obj.total is not None else "-"
         ctk.CTkLabel(
-            self.table_container, text=data['grade'], 
+            self.table_container, text=total_text, 
             font=("Arial", 13, "bold"), text_color="#2A9D8F"
         ).grid(row=r, column=5, sticky="ew", pady=common_pady)
 

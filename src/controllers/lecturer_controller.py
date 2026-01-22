@@ -2,6 +2,7 @@ from database.repositories.lecturer_repo import LecturerRepository
 from database.repositories.class_repo import ClassRepository
 from database.repositories.grade_repo import GradeRepository
 from models.academic.grade import Grade
+from utils.validators import Validators
 
 class LecturerController:
     def __init__(self, user_id):
@@ -35,6 +36,10 @@ class LecturerController:
         """
         FR-12 & FR-13: Enter/Update Grades
         """
+        # Validate inputs
+        if not (Validators.is_valid_grade(attendance) and Validators.is_valid_grade(midterm) and Validators.is_valid_grade(final)):
+             return False, "Grades must be between 0.0 and 10.0"
+
         # 1. Tìm grade_id tương ứng
         grade_id = self.grade_repo.get_id_by_enrollment(student_id, class_id)
         

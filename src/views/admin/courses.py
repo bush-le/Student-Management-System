@@ -55,19 +55,20 @@ class CoursesFrame(ctk.CTkFrame):
         for i, w in enumerate(weights): row.grid_columnconfigure(i, weight=w)
 
         # Cells
-        ctk.CTkLabel(row, text=data['course_code'], font=("Arial", 12, "bold"), text_color="#333", anchor="w").grid(row=0, column=0, sticky="ew", padx=10, pady=15)
-        ctk.CTkLabel(row, text=data['course_name'], anchor="w").grid(row=0, column=1, sticky="ew", padx=10)
-        ctk.CTkLabel(row, text=str(data['credits']), anchor="w").grid(row=0, column=2, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=data.course_code, font=("Arial", 12, "bold"), text_color="#333", anchor="w").grid(row=0, column=0, sticky="ew", padx=10, pady=15)
+        ctk.CTkLabel(row, text=data.course_name, anchor="w").grid(row=0, column=1, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=str(data.credits), anchor="w").grid(row=0, column=2, sticky="ew", padx=10)
 
         # Type Badge (Core/Elective)
-        ctype = data.get('course_type', 'Core')
+        ctype = data.course_type
         bg = "#DBEAFE" if ctype == "Core" else "#F3E8FF" # Blue vs Purple
         fg = "#1E40AF" if ctype == "Core" else "#7E22CE"
         badge = ctk.CTkFrame(row, fg_color=bg, corner_radius=6, height=22)
         badge.grid(row=0, column=3, sticky="w", padx=10)
         ctk.CTkLabel(badge, text=ctype, font=("Arial", 10, "bold"), text_color=fg).pack(padx=8, pady=2)
 
-        ctk.CTkLabel(row, text=data.get('prerequisites_str', 'None'), text_color="gray", anchor="w").grid(row=0, column=4, sticky="ew", padx=10)
+        prereq = data.prerequisites_str if data.prerequisites_str else 'None'
+        ctk.CTkLabel(row, text=prereq, text_color="gray", anchor="w").grid(row=0, column=4, sticky="ew", padx=10)
 
         # Actions
         actions = ctk.CTkFrame(row, fg_color="transparent")
@@ -75,7 +76,7 @@ class CoursesFrame(ctk.CTkFrame):
         ctk.CTkButton(actions, text="✎", width=30, fg_color="transparent", text_color=self.COLOR_EDIT, hover_color="#EFF6FF", 
                       font=("Arial", 16), command=lambda: self.open_edit_dialog(data)).pack(side="left")
         ctk.CTkButton(actions, text="🗑", width=30, fg_color="transparent", text_color=self.COLOR_DELETE, hover_color="#FEF2F2", 
-                      font=("Arial", 16), command=lambda: self.delete_item(data['course_id'])).pack(side="left")
+                      font=("Arial", 16), command=lambda: self.delete_item(data.course_id)).pack(side="left")
 
         ctk.CTkFrame(self.scroll_area, height=1, fg_color="#F3F4F6").pack(fill="x")
 
@@ -142,12 +143,12 @@ class CourseDialog(ctk.CTkToplevel):
 
         # Fill Data if Edit
         if data:
-            self.ent_code.insert(0, data['course_code'])
-            self.ent_name.insert(0, data['course_name'])
-            self.ent_credits.insert(0, str(data['credits']))
-            self.combo_type.set(data.get('course_type', 'Core'))
-            self.txt_desc.insert("0.0", data.get('description', ''))
-            self.ent_prereq.insert(0, data.get('prerequisites_str', ''))
+            self.ent_code.insert(0, data.course_code)
+            self.ent_name.insert(0, data.course_name)
+            self.ent_credits.insert(0, str(data.credits))
+            self.combo_type.set(data.course_type)
+            self.txt_desc.insert("0.0", data.description if data.description else '')
+            self.ent_prereq.insert(0, data.prerequisites_str if data.prerequisites_str else '')
             self.ent_code.configure(state="disabled") # Code usually unique
 
         self.lift()
@@ -169,7 +170,7 @@ class CourseDialog(ctk.CTkToplevel):
 
         if self.data: # Update
             success, msg = self.controller.update_course(
-                self.data['course_id'], self.ent_code.get(), self.ent_name.get(),
+                self.data.course_id, self.ent_code.get(), self.ent_name.get(),
                 credits, self.combo_type.get(), 
                 self.txt_desc.get("0.0", "end").strip(), self.ent_prereq.get()
             )

@@ -26,11 +26,30 @@ StudentManagementSystem/
 │   │       └── announcement.py # System notifications and alerts
 │   ├── views/               # GUI layers separated by user role
 │   │   ├── __init__.py
+│   │   ├── root_app.py      # Main application window container
 │   │   ├── components/      # Reusable UI widgets (custom buttons, inputs)
-│   │   ├── auth/            # Login, Forgot, and Change Password screens
-│   │   ├── student/         # Dashboard, Schedule, and Result interfaces
-│   │   ├── lecturer/        # Grading and Roster management screens
-│   │   └── admin/           # System administration and data management
+│   │   ├── auth/            # Authentication screens
+│   │   │   ├── login_window.py
+│   │   │   └── forgot_password.py
+│   │   ├── student/         # Student interfaces
+│   │   │   ├── dashboard.py
+│   │   │   ├── schedule.py
+│   │   │   ├── grades.py
+│   │   │   ├── profile.py
+│   │   │   └── notifications.py
+│   │   ├── lecturer/        # Lecturer interfaces
+│   │   │   ├── dashboard.py
+│   │   │   ├── schedule.py
+│   │   │   ├── my_class.py
+│   │   │   └── class_manager.py
+│   │   └── admin/           # Admin interfaces
+│   │       ├── dashboard.py
+│   │       ├── semesters.py
+│   │       ├── student.py
+│   │       ├── lecturers.py
+│   │       ├── courses.py
+│   │       ├── classes.py
+│   │       └── announcements.py
 │   ├── controllers/         # Bridges logic between Models and Views
 │   │   ├── __init__.py
 │   │   ├── auth_controller.py

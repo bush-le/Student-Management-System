@@ -6,6 +6,7 @@ from views.admin.dashboard import AdminDashboard
 
 class RootApp(ctk.CTk):
     def __init__(self):
+        ctk.set_appearance_mode("Light")
         super().__init__()
         self.title("Student Management System")
         self.geometry("1200x700")

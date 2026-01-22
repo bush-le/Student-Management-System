@@ -207,6 +207,21 @@ class AdminController:
         """Lấy danh sách khoa để hiển thị lên ComboBox"""
         return self.dept_repo.get_all()
 
+    def get_dashboard_stats(self):
+        """Lấy số liệu thống kê tổng quan cho Dashboard từ DB thật."""
+        try:
+            stats = {
+                'students': self.student_repo.count_all(),
+                'lecturers': self.lecturer_repo.count_all(),
+                'courses': self.course_repo.count_all(),
+                'classes': self.class_repo.count_all()
+            }
+            return stats
+        except Exception as e:
+            print(f"Lỗi khi lấy thống kê Dashboard: {e}")
+            # Trả về 0 nếu có lỗi DB để tránh crash UI
+            return {'students': 0, 'lecturers': 0, 'courses': 0, 'classes': 0}
+
     # =========================================================================
     # VIEW ACADEMIC RECORD (Cập nhật dùng GradeRepo)
     # =========================================================================

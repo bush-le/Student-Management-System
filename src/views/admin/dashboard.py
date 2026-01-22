@@ -6,278 +6,261 @@ from views.admin.student import StudentsFrame
 from views.admin.lecturers import LecturersFrame
 from views.admin.courses import CoursesFrame
 from views.admin.classes import ClassesFrame
-from views.admin.announcements import AnnouncementsFrame
+from views.admin.announcements import AnnouncementsFrame, AnnouncementDialog
 
 class AdminDashboard(ctk.CTkFrame):
     def __init__(self, parent, app, user):
-        super().__init__(parent, fg_color="#F5F7F9")
+        super().__init__(parent, fg_color="#F3F4F6")
         self.app = app
         self.user = user
         self.controller = AdminController(user.user_id)
         self.nav_buttons = {}
+        self.user_menu = None # Biến để theo dõi menu dropdown
         
-        # --- COLOR PALETTE (Theo hình ảnh) ---
-        self.COLOR_PRIMARY = "#0F766E"     # Teal đậm
-        self.COLOR_ACCENT = "#10B981"      # Emerald
+        self.COLOR_PRIMARY = "#0F766E"
+        self.COLOR_SIDEBAR = "#FFFFFF"
+        self.COLOR_TEXT_MAIN = "#111827"
+        self.COLOR_TEXT_SUB = "#6B7280"
         
-        # --- DATA FETCHING ---
-        try:
-            self.stats = self.controller.get_dashboard_stats()
-        except:
-            self.stats = {'students': 0, 'lecturers': 0, 'courses': 0}
+        # Load stats
+        self.stats = self.controller.get_dashboard_stats()
             
-        # --- LAYOUT SETUP ---
-        self.grid_columnconfigure(0, weight=0) # Sidebar cố định
-        self.grid_columnconfigure(1, weight=1) # Content giãn
+        self.grid_columnconfigure(0, weight=0) 
+        self.grid_columnconfigure(1, weight=1) 
         self.grid_rowconfigure(0, weight=1)
 
-        # 1. SIDEBAR
         self.create_sidebar()
-
-        # 2. MAIN CONTENT AREA
-        self.main_area = ctk.CTkFrame(self, fg_color="#F5F7F9", corner_radius=0)
+        self.main_area = ctk.CTkFrame(self, fg_color="#F3F4F6", corner_radius=0)
         self.main_area.grid(row=0, column=1, sticky="nsew")
         
-        # Header (Tiêu đề + Nút Post)
         self.create_header()
 
-        # Scrollable Content Body
         self.content_scroll = ctk.CTkScrollableFrame(self.main_area, fg_color="transparent")
         self.content_scroll.pack(fill="both", expand=True, padx=30, pady=(10, 30))
         
-        # Layout nội dung: 1 cột duy nhất
-        self.content_scroll.grid_columnconfigure(0, weight=1)
-
-        # Stats Row
-        self.create_stats_row()
-        
-        # Quick Management Grid
-        self.create_quick_management()
+        self.show_home()
 
     # =========================================================================
-    # 1. SIDEBAR SECTION
+    # 1. SIDEBAR
     # =========================================================================
     def create_sidebar(self):
-        sidebar = ctk.CTkFrame(self, width=260, corner_radius=0, fg_color="white")
+        sidebar = ctk.CTkFrame(self, width=240, corner_radius=0, fg_color=self.COLOR_SIDEBAR)
         sidebar.grid(row=0, column=0, sticky="nswe")
         sidebar.grid_rowconfigure(10, weight=1)
 
         # Logo Header
         logo_box = ctk.CTkFrame(sidebar, fg_color="transparent")
-        logo_box.grid(row=0, column=0, padx=20, pady=30, sticky="w")
-        
-        icon_bg = ctk.CTkFrame(logo_box, width=35, height=35, fg_color="#E0F2F1", corner_radius=8)
-        icon_bg.pack(side="left")
-        ctk.CTkLabel(icon_bg, text="🎓", font=("Arial", 20)).place(relx=0.5, rely=0.5, anchor="center")
+        logo_box.grid(row=0, column=0, padx=20, pady=30, sticky="ew")
         
         text_box = ctk.CTkFrame(logo_box, fg_color="transparent")
-        text_box.pack(side="left", padx=10)
-        ctk.CTkLabel(text_box, text="SMS", font=("Arial", 16, "bold"), text_color="#333").pack(anchor="w")
-        ctk.CTkLabel(text_box, text="PORTAL", font=("Arial", 10, "bold"), text_color="gray").pack(anchor="w")
+        text_box.pack(side="left")
+        ctk.CTkLabel(text_box, text="SMS ADMIN", font=("Arial", 18, "bold"), text_color=self.COLOR_PRIMARY).pack(anchor="w")
+        ctk.CTkLabel(text_box, text="Management Portal", font=("Arial", 10, "bold"), text_color=self.COLOR_TEXT_SUB).pack(anchor="w")
 
-        # Menu Label
-        ctk.CTkLabel(sidebar, text="MENU", font=("Arial", 11, "bold"), text_color="#9CA3AF").grid(row=1, column=0, sticky="w", padx=30, pady=(10, 5))
+        # Menu
+        ctk.CTkLabel(sidebar, text="MAIN MENU", font=("Arial", 11, "bold"), text_color="#9CA3AF").grid(row=1, column=0, sticky="w", padx=30, pady=(20, 10))
 
-        # Menu Items
-        self._sidebar_btn(sidebar, 2, "Dashboard", "🏠", active=True, key="Dashboard")
-        self._sidebar_btn(sidebar, 3, "Semesters", "🕒", key="Semesters", 
-                          command=lambda: [self.set_active_menu("Semesters"), self.show_semesters()])
-        self._sidebar_btn(sidebar, 4, "Students", "👨‍🎓", key="Students", 
-            command=lambda: [self.set_active_menu("Students"), self.show_students()]
-        )
-        self._sidebar_btn(sidebar, 5, "Lecturers", "👨‍🏫", key="Lecturers",
-            command=lambda: [self.set_active_menu("Lecturers"), self.show_lecturers()]
-        )
-        self._sidebar_btn(sidebar, 6, "Courses", "📖", key="Courses",
-            command=lambda: [self.set_active_menu("Courses"), self.show_courses()]
-        )
-        self._sidebar_btn(sidebar, 7, "Classes", "🏫", key="Classes",
-            command=lambda: [self.set_active_menu("Classes"), self.show_classes()]
-        )
-        self._sidebar_btn(sidebar, 8, "Grades", "📊", key="Grades")
-        self._sidebar_btn(sidebar, 9, "Announcements", "📢", key="Announcements",
-            command=lambda: [self.set_active_menu("Announcements"), self.show_announcements()]
-        )
+        self._sidebar_btn(sidebar, 2, "Dashboard", key="Dashboard", command=self.show_home)
+        self._sidebar_btn(sidebar, 3, "Semesters", key="Semesters", command=lambda: self.switch_view("Semesters", self.show_semesters))
+        self._sidebar_btn(sidebar, 4, "Students", key="Students", command=lambda: self.switch_view("Students", self.show_students))
+        self._sidebar_btn(sidebar, 5, "Lecturers", key="Lecturers", command=lambda: self.switch_view("Lecturers", self.show_lecturers))
+        self._sidebar_btn(sidebar, 6, "Courses", key="Courses", command=lambda: self.switch_view("Courses", self.show_courses))
+        self._sidebar_btn(sidebar, 7, "Classes", key="Classes", command=lambda: self.switch_view("Classes", self.show_classes))
+        self._sidebar_btn(sidebar, 8, "Announcements", key="Announcements", command=lambda: self.switch_view("Announcements", self.show_announcements))
 
         # Footer
-        footer = ctk.CTkFrame(sidebar, fg_color="#E0F2F1", corner_radius=10, height=50)
+        footer = ctk.CTkFrame(sidebar, fg_color="#F0FDFA", corner_radius=12, height=60)
         footer.grid(row=11, column=0, padx=20, pady=20, sticky="ew")
-        ctk.CTkLabel(footer, text="Student System v1.0", font=("Arial", 11, "bold"), text_color="#047857").place(relx=0.5, rely=0.35, anchor="center")
-        ctk.CTkLabel(footer, text="© 2026 University", font=("Arial", 9), text_color="#065F46").place(relx=0.5, rely=0.75, anchor="center")
+        ctk.CTkLabel(footer, text="Logged in as:", font=("Arial", 10), text_color="gray").place(relx=0.5, rely=0.3, anchor="center")
+        ctk.CTkLabel(footer, text=self.user.full_name, font=("Arial", 12, "bold"), text_color=self.COLOR_PRIMARY).place(relx=0.5, rely=0.6, anchor="center")
 
-        # Sign Out Btn
-        ctk.CTkButton(sidebar, text="🚪 Sign Out", fg_color="transparent", text_color="#E76F51", hover_color="#FEF2F2", anchor="w", font=("Arial", 14), command=self.app.show_login).grid(row=12, column=0, padx=20, pady=20, sticky="ew")
+        # --- ĐÃ XÓA NÚT SIGN OUT Ở ĐÂY ---
 
-    def _sidebar_btn(self, parent, row, text, icon, active=False, command=None, key=None):
-        color = self.COLOR_PRIMARY if active else "transparent"
-        text_col = "white" if active else "#4B5563"
-        hover = self.COLOR_PRIMARY if active else "#F3F4F6"
-        
-        if command is None:
-            command = lambda: print(f"Nav to {text}")
-
+    def _sidebar_btn(self, parent, row, text, key=None, command=None):
         btn = ctk.CTkButton(
-            parent, text=f"  {icon}    {text}", 
-            fg_color=color, text_color=text_col, hover_color=hover, 
-            anchor="w", font=("Arial", 13, "bold"), height=45, corner_radius=8,
+            parent, text=text, 
+            fg_color="transparent", text_color="#4B5563", 
+            hover_color="#F3F4F6", anchor="w", 
+            font=("Arial", 14, "bold"), height=45, corner_radius=8,
             command=command
         )
         btn.grid(row=row, column=0, padx=15, pady=4, sticky="ew")
-        
-        if key:
-            self.nav_buttons[key] = btn
+        if key: self.nav_buttons[key] = btn
 
     # =========================================================================
-    # 2. HEADER SECTION
+    # 2. HEADER SECTION (CẬP NHẬT: USER MENU DROPDOWN)
     # =========================================================================
     def create_header(self):
-        header = ctk.CTkFrame(self.main_area, fg_color="transparent", height=80)
+        header = ctk.CTkFrame(self.main_area, fg_color="transparent", height=70)
         header.pack(fill="x", padx=30, pady=(20, 0))
         
-        ctk.CTkLabel(header, text="Admin Control Center", font=("Arial", 24, "bold"), text_color="#111827").pack(side="left")
+        # Page Title
+        self.page_title = ctk.CTkLabel(header, text="Dashboard Overview", font=("Arial", 24, "bold"), text_color=self.COLOR_TEXT_MAIN)
+        self.page_title.pack(side="left", anchor="c")
 
-        btn = ctk.CTkButton(
-            header, text="📢  Post Announcement", 
-            fg_color=self.COLOR_PRIMARY, hover_color="#115E59", 
-            font=("Arial", 13, "bold"), height=40, width=180
-        )
-        btn.pack(side="right")
-
-    # =========================================================================
-    # 3. STATS CARDS
-    # =========================================================================
-    def create_stats_row(self):
-        container = ctk.CTkFrame(self.content_scroll, fg_color="transparent")
-        # Grid layout cho 3 card, chiếm toàn bộ chiều ngang
-        container.pack(fill="x", pady=(20, 30))
+        # Right Actions
+        right_box = ctk.CTkFrame(header, fg_color="transparent")
+        right_box.pack(side="right", anchor="c")
         
-        container.grid_columnconfigure(0, weight=1)
-        container.grid_columnconfigure(1, weight=1)
-        container.grid_columnconfigure(2, weight=1)
+        # Nút Post Announcement
+        ctk.CTkButton(
+            right_box, text="+ Post Announcement", 
+            fg_color="#0F766E", hover_color="#115E59",
+            width=160, height=35, font=("Arial", 13, "bold"),
+            command=self.open_quick_post
+        ).pack(side="left", padx=(0, 20))
+        
+        # --- USER PROFILE SECTION (Clickable để hiện menu) ---
+        user_section = ctk.CTkFrame(right_box, fg_color="transparent", cursor="hand2")
+        user_section.pack(side="left")
+        # Gán sự kiện click để mở/đóng menu
+        user_section.bind("<Button-1>", self.toggle_user_menu)
 
-        s_count = self.stats.get('students', 0)
-        l_count = self.stats.get('lecturers', 0)
-        c_count = self.stats.get('courses', 0)
+        user_info = ctk.CTkFrame(user_section, fg_color="transparent")
+        user_info.pack(side="left")
+        
+        lbl_name = ctk.CTkLabel(user_info, text=self.user.full_name, font=("Arial", 13, "bold"), text_color="#333")
+        lbl_name.pack(anchor="e")
+        lbl_role = ctk.CTkLabel(user_info, text="ADMINISTRATOR", font=("Arial", 10, "bold"), text_color=self.COLOR_PRIMARY)
+        lbl_role.pack(anchor="e")
 
-        self._draw_stat_card(container, 0, "STUDENTS", s_count, "👨‍🎓", "#DBEAFE", "#2563EB")
-        self._draw_stat_card(container, 1, "LECTURERS", l_count, "👨‍🏫", "#F3E8FF", "#9333EA")
-        self._draw_stat_card(container, 2, "COURSES", c_count, "📖", "#FFEDD5", "#EA580C")
+        avatar = ctk.CTkFrame(user_section, width=40, height=40, corner_radius=20, fg_color="#0F766E")
+        avatar.pack(side="left", padx=(10, 0))
+        lbl_avatar = ctk.CTkLabel(avatar, text=self.user.full_name[:1], font=("Arial", 16, "bold"), text_color="white")
+        lbl_avatar.place(relx=0.5, rely=0.5, anchor="center")
 
-    def _draw_stat_card(self, parent, col, title, value, icon, bg_color, icon_color):
+        # Gán sự kiện click cho các thành phần con để đảm bảo click hoạt động
+        for w in [lbl_name, lbl_role, avatar, lbl_avatar]:
+            w.bind("<Button-1>", self.toggle_user_menu)
+
+    # --- CÁC HÀM XỬ LÝ USER MENU ---
+    def toggle_user_menu(self, event=None):
+        """Hiện hoặc ẩn menu người dùng."""
+        if self.user_menu and self.user_menu.winfo_exists():
+            self.user_menu.destroy()
+            self.user_menu = None
+        else:
+            self.create_user_menu()
+
+    def create_user_menu(self):
+        """Tạo và hiển thị menu dropdown."""
+        self.user_menu = ctk.CTkFrame(self.main_area, fg_color="white", corner_radius=8, border_width=1, border_color="#E5E7EB", width=160)
+        # Đặt vị trí menu ngay dưới phần thông tin user ở góc phải
+        self.user_menu.place(relx=1.0, rely=0.0, anchor="ne", x=-30, y=85) 
+        
+        # Nút Sign Out trong menu
+        ctk.CTkButton(
+            self.user_menu, text="Sign Out", 
+            fg_color="transparent", text_color="#EF4444", hover_color="#FEF2F2", 
+            anchor="w", font=("Arial", 13, "bold"), width=140, height=35,
+            command=self.app.show_login
+        ).pack(pady=5, padx=5)
+
+    # Hàm mở dialog post nhanh
+    def open_quick_post(self):
+        def callback():
+            for widget in self.content_scroll.winfo_children():
+                if isinstance(widget, AnnouncementsFrame):
+                    widget.load_data()
+                    break
+
+        AnnouncementDialog(self, "New Announcement", self.controller, callback, user_id=self.user.user_id)
+
+    # =========================================================================
+    # 3. DASHBOARD HOME
+    # =========================================================================
+    def show_home(self):
+        self.clear_content()
+        self.set_active_menu("Dashboard")
+        self.page_title.configure(text="Dashboard Overview")
+
+        # Stats
+        stats_frame = ctk.CTkFrame(self.content_scroll, fg_color="transparent")
+        stats_frame.pack(fill="x", pady=(10, 30))
+        
+        stats_frame.grid_columnconfigure(0, weight=1)
+        stats_frame.grid_columnconfigure(1, weight=1)
+        stats_frame.grid_columnconfigure(2, weight=1)
+        stats_frame.grid_columnconfigure(3, weight=1)
+
+        self._draw_stat_card(stats_frame, 0, "TOTAL STUDENTS", self.stats['students'])
+        self._draw_stat_card(stats_frame, 1, "TOTAL LECTURERS", self.stats['lecturers'])
+        self._draw_stat_card(stats_frame, 2, "ACTIVE COURSES", self.stats['courses'])
+        self._draw_stat_card(stats_frame, 3, "TOTAL CLASSES", self.stats['classes'])
+
+        # Quick Actions
+        ctk.CTkLabel(self.content_scroll, text="Quick Actions", font=("Arial", 18, "bold"), text_color=self.COLOR_TEXT_MAIN).pack(anchor="w", pady=(0, 15))
+        
+        actions_grid = ctk.CTkFrame(self.content_scroll, fg_color="transparent")
+        actions_grid.pack(fill="x", anchor="w")
+        
+        self._draw_action_btn(actions_grid, "Add New Student", "Create a new student profile", lambda: self.switch_view("Students", self.show_students))
+        self._draw_action_btn(actions_grid, "Schedule Class", "Assign room & time", lambda: self.switch_view("Classes", self.show_classes))
+        self._draw_action_btn(actions_grid, "Manage Semesters", "Set up new terms", lambda: self.switch_view("Semesters", self.show_semesters))
+
+    def _draw_stat_card(self, parent, col, title, value):
         card = ctk.CTkFrame(parent, fg_color="white", corner_radius=12, border_width=0)
-        # padx 10 giữa các card
-        card.grid(row=0, column=col, sticky="ew", padx=10)
+        card.grid(row=0, column=col, sticky="ew", padx=8)
         
         inner = ctk.CTkFrame(card, fg_color="transparent")
-        inner.pack(fill="both", expand=True, padx=25, pady=25)
+        inner.pack(padx=20, pady=20, fill="x")
 
-        left = ctk.CTkFrame(inner, fg_color="transparent")
-        left.pack(side="left")
-        
-        ctk.CTkLabel(left, text=title, font=("Arial", 11, "bold"), text_color="gray").pack(anchor="w")
-        ctk.CTkLabel(left, text=str(value), font=("Arial", 32, "bold"), text_color="#1F2937").pack(anchor="w", pady=(5, 0))
-        
-        badge = ctk.CTkFrame(left, fg_color="transparent")
-        badge.pack(anchor="w", pady=(5, 0))
-        ctk.CTkLabel(badge, text="+2%", font=("Arial", 11, "bold"), text_color="#10B981").pack(side="left")
-        ctk.CTkLabel(badge, text=" from last month", font=("Arial", 11), text_color="gray").pack(side="left", padx=2)
+        ctk.CTkLabel(inner, text=title, font=("Arial", 11, "bold"), text_color="#6B7280").pack(anchor="w")
+        ctk.CTkLabel(inner, text=f"{value}", font=("Arial", 28, "bold"), text_color="#111827").pack(anchor="w", pady=(5, 0))
 
-        icon_box = ctk.CTkFrame(inner, width=55, height=55, corner_radius=12, fg_color=bg_color)
-        icon_box.pack(side="right", anchor="ne")
-        ctk.CTkLabel(icon_box, text=icon, font=("Arial", 24), text_color=icon_color).place(relx=0.5, rely=0.5, anchor="center")
-
-    # =========================================================================
-    # 4. QUICK MANAGEMENT GRID
-    # =========================================================================
-    def create_quick_management(self):
-        container = ctk.CTkFrame(self.content_scroll, fg_color="white", corner_radius=12)
-        # Giờ đây Quick Management chiếm toàn bộ chiều ngang
-        container.pack(fill="both", expand=True) 
-        
-        header = ctk.CTkFrame(container, fg_color="transparent")
-        header.pack(fill="x", padx=25, pady=20)
-        ctk.CTkLabel(header, text="QUICK MANAGEMENT", font=("Arial", 13, "bold"), text_color=self.COLOR_PRIMARY).pack(anchor="w")
-        ctk.CTkFrame(header, height=2, fg_color="#F3F4F6").pack(fill="x", pady=(10, 0))
-
-        grid = ctk.CTkFrame(container, fg_color="transparent")
-        grid.pack(fill="both", expand=True, padx=20, pady=(0, 20))
-        
-        # Grid 3 cột
-        grid.grid_columnconfigure(0, weight=1)
-        grid.grid_columnconfigure(1, weight=1)
-        grid.grid_columnconfigure(2, weight=1)
-
-        items = [
-            ("Semesters", "🕒", "#FEE2E2", "#EF4444"),  
-            ("Students", "👨‍🎓", "#DBEAFE", "#3B82F6"),  
-            ("Lecturers", "👨‍🏫", "#F3E8FF", "#8B5CF6"), 
-            ("Courses", "📖", "#FFEDD5", "#F59E0B"),    
-            ("Classes", "🏫", "#D1FAE5", "#10B981"),    
-            ("Announcements", "📢", "#F3F4F6", "#4B5563")
-        ]
-
-        for i, (text, icon, bg, fg) in enumerate(items):
-            r, c = divmod(i, 3)
-            self._draw_mgmt_btn(grid, r, c, text, icon, bg, fg)
-
-    def _draw_mgmt_btn(self, parent, r, c, text, icon, bg, fg):
+    def _draw_action_btn(self, parent, title, desc, command):
         btn = ctk.CTkButton(
-            parent, text="", fg_color="white", border_width=1, border_color="#E5E7EB",
-            hover_color="#F9FAFB", height=100, corner_radius=10,
-            command=lambda: print(f"Manage {text}")
+            parent, text="", fg_color="white", hover_color="#F9FAFB",
+            height=70, corner_radius=10, width=200,
+            command=command
         )
-        btn.grid(row=r, column=c, sticky="ew", padx=10, pady=10)
+        btn.pack(side="left", padx=(0, 15))
         
-        icon_f = ctk.CTkFrame(btn, width=40, height=40, corner_radius=20, fg_color=bg)
-        icon_f.place(relx=0.5, rely=0.4, anchor="center")
-        ctk.CTkLabel(icon_f, text=icon, text_color=fg, font=("Arial", 18)).place(relx=0.5, rely=0.5, anchor="center")
+        t_lbl = ctk.CTkLabel(btn, text=title, font=("Arial", 13, "bold"), text_color="#333")
+        t_lbl.place(relx=0.1, rely=0.3, anchor="w")
         
-        ctk.CTkLabel(btn, text=text, font=("Arial", 12, "bold"), text_color="#374151").place(relx=0.5, rely=0.75, anchor="center")
+        d_lbl = ctk.CTkLabel(btn, text=desc, font=("Arial", 10), text_color="gray")
+        d_lbl.place(relx=0.1, rely=0.65, anchor="w")
+
+    # =========================================================================
+    # 4. UTILS & NAVIGATION
+    # =========================================================================
+    def clear_content(self):
+        # Đóng menu nếu đang mở khi chuyển trang
+        if self.user_menu and self.user_menu.winfo_exists():
+            self.user_menu.destroy()
+            self.user_menu = None
+            
+        for widget in self.content_scroll.winfo_children():
+            widget.destroy()
 
     def set_active_menu(self, key):
         for k, btn in self.nav_buttons.items():
-            is_active = (k == key)
-            color = self.COLOR_PRIMARY if is_active else "transparent"
-            text_col = "white" if is_active else "#4B5563"
-            btn.configure(fg_color=color, text_color=text_col)
+            if k == key:
+                btn.configure(fg_color="#CCFBF1", text_color=self.COLOR_PRIMARY)
+            else:
+                btn.configure(fg_color="transparent", text_color="#4B5563")
+
+    def switch_view(self, title, view_func):
+        self.clear_content()
+        self.set_active_menu(title)
+        self.page_title.configure(text=f"Manage {title}")
+        view_func()
 
     def show_semesters(self):
-        # 1. Clear content
-        for widget in self.content_scroll.winfo_children(): widget.destroy()
-
-        # 2. Reset grid (1 column full width)
-        self.content_scroll.grid_columnconfigure(0, weight=1)
-        self.content_scroll.grid_columnconfigure(1, weight=0)
-
-        # 3. Show Frame
         SemestersFrame(self.content_scroll, self.user.user_id).pack(fill="both", expand=True)
 
     def show_students(self):
-        for widget in self.content_scroll.winfo_children(): widget.destroy()
-        self.content_scroll.grid_columnconfigure(0, weight=1)
-        self.content_scroll.grid_columnconfigure(1, weight=0)
         StudentsFrame(self.content_scroll, self.user.user_id).pack(fill="both", expand=True)
 
     def show_lecturers(self):
-        for widget in self.content_scroll.winfo_children(): widget.destroy()
-        self.content_scroll.grid_columnconfigure(0, weight=1)
-        self.content_scroll.grid_columnconfigure(1, weight=0)
         LecturersFrame(self.content_scroll, self.user.user_id).pack(fill="both", expand=True)
 
     def show_courses(self):
-        for widget in self.content_scroll.winfo_children(): widget.destroy()
-        self.content_scroll.grid_columnconfigure(0, weight=1)
-        self.content_scroll.grid_columnconfigure(1, weight=0)
         CoursesFrame(self.content_scroll, self.user.user_id).pack(fill="both", expand=True)
 
     def show_classes(self):
-        for widget in self.content_scroll.winfo_children(): widget.destroy()
-        self.content_scroll.grid_columnconfigure(0, weight=1)
-        self.content_scroll.grid_columnconfigure(1, weight=0)
         ClassesFrame(self.content_scroll, self.user.user_id).pack(fill="both", expand=True)
 
     def show_announcements(self):
-        for widget in self.content_scroll.winfo_children(): widget.destroy()
-        self.content_scroll.grid_columnconfigure(0, weight=1)
-        self.content_scroll.grid_columnconfigure(1, weight=0)
         AnnouncementsFrame(self.content_scroll, self.user.user_id).pack(fill="both", expand=True)

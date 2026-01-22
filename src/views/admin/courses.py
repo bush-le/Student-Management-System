@@ -4,81 +4,97 @@ from controllers.admin_controller import AdminController
 
 class CoursesFrame(ctk.CTkFrame):
     def __init__(self, parent, user_id):
-        super().__init__(parent, fg_color="white")
+        super().__init__(parent, fg_color="transparent")
         self.controller = AdminController(user_id)
         
-        self.COLOR_PRIMARY = "#10B981"
-        self.COLOR_EDIT = "#3B82F6"
-        self.COLOR_DELETE = "#EF4444"
-
-        # 1. Header
-        self.create_header()
+        # 1. Toolbar
+        self.create_toolbar()
 
         # 2. Table Header
         self.create_table_header()
 
         # 3. List Container
-        self.scroll_area = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.scroll_area.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        self.scroll_area = ctk.CTkScrollableFrame(self, fg_color="white", corner_radius=10)
+        self.scroll_area.pack(fill="both", expand=True, pady=(0, 20))
 
         # 4. Load Data
         self.load_data()
 
-    def create_header(self):
-        header = ctk.CTkFrame(self, fg_color="transparent", height=60)
-        header.pack(fill="x", padx=20, pady=20)
-        ctk.CTkLabel(header, text="MANAGE COURSES", font=("Arial", 20, "bold"), text_color="#115E59").pack(side="left")
-        ctk.CTkButton(header, text="+ Add Course", fg_color=self.COLOR_PRIMARY, hover_color="#059669", 
-                      width=120, command=self.open_add_dialog).pack(side="right")
+    def create_toolbar(self):
+        toolbar = ctk.CTkFrame(self, fg_color="transparent", height=50)
+        toolbar.pack(fill="x", pady=(0, 15))
+        
+        # Search Entry
+        self.search_ent = ctk.CTkEntry(
+            toolbar, placeholder_text="Search course...", 
+            width=300, height=40, border_color="#E5E7EB", border_width=1
+        )
+        self.search_ent.pack(side="left")
+        
+        # Add Button
+        btn_add = ctk.CTkButton(
+            toolbar, text="+ Add Course", fg_color="#0F766E", hover_color="#115E59", height=40,
+            font=("Arial", 13, "bold"),
+            command=self.open_add_dialog
+        )
+        btn_add.pack(side="right")
 
     def create_table_header(self):
-        h_frame = ctk.CTkFrame(self, fg_color="#F9FAFB", height=45, corner_radius=0)
-        h_frame.pack(fill="x", padx=20)
+        h_frame = ctk.CTkFrame(self, fg_color="#E5E7EB", height=40, corner_radius=5)
+        h_frame.pack(fill="x", pady=(0, 5))
         
-        # Columns: Code, Name, Credits, Type, Prerequisites, Actions
-        cols = [("COURSE CODE", 1), ("COURSE NAME", 3), ("CREDITS", 1), ("TYPE", 1), ("PREREQUISITES", 2), ("ACTIONS", 1)]
+        # Columns: Code, Name, Credits, Prerequisites, Actions
+        # (ĐÃ BỎ CỘT TYPE/BADGE)
+        cols = [("CODE", 1), ("COURSE NAME", 4), ("CREDITS", 1), ("PREREQUISITES", 3), ("ACTIONS", 2)]
         
         for i, (text, w) in enumerate(cols):
             h_frame.grid_columnconfigure(i, weight=w)
-            ctk.CTkLabel(h_frame, text=text, font=("Arial", 11, "bold"), text_color="gray", anchor="w").grid(row=0, column=i, sticky="ew", padx=10, pady=12)
+            ctk.CTkLabel(
+                h_frame, text=text, font=("Arial", 11, "bold"), text_color="#374151", anchor="w"
+            ).grid(row=0, column=i, sticky="ew", padx=10, pady=8)
 
     def load_data(self):
         for w in self.scroll_area.winfo_children(): w.destroy()
-        courses = self.controller.get_all_courses()
-        for c in courses: self.create_row(c)
+        try:
+            courses = self.controller.get_all_courses()
+            for idx, c in enumerate(courses): 
+                self.create_row(c, idx)
+        except Exception as e:
+            print(f"Error loading courses: {e}")
 
-    def create_row(self, data):
-        row = ctk.CTkFrame(self.scroll_area, fg_color="white", corner_radius=0)
-        row.pack(fill="x", pady=1)
+    def create_row(self, data, idx):
+        # Zebra striping
+        bg_color = "white" if idx % 2 == 0 else "#F9FAFB"
         
-        weights = [1, 3, 1, 1, 2, 1]
+        row = ctk.CTkFrame(self.scroll_area, fg_color=bg_color, corner_radius=0, height=45)
+        row.pack(fill="x")
+        
+        # Grid weights match Header
+        weights = [1, 4, 1, 3, 2]
         for i, w in enumerate(weights): row.grid_columnconfigure(i, weight=w)
 
-        # Cells
-        ctk.CTkLabel(row, text=data.course_code, font=("Arial", 12, "bold"), text_color="#333", anchor="w").grid(row=0, column=0, sticky="ew", padx=10, pady=15)
-        ctk.CTkLabel(row, text=data.course_name, anchor="w").grid(row=0, column=1, sticky="ew", padx=10)
-        ctk.CTkLabel(row, text=str(data.credits), anchor="w").grid(row=0, column=2, sticky="ew", padx=10)
+        # Data Cells
+        ctk.CTkLabel(row, text=data.course_code, font=("Arial", 12, "bold"), text_color="#333", anchor="w").grid(row=0, column=0, sticky="ew", padx=10, pady=12)
+        ctk.CTkLabel(row, text=data.course_name, font=("Arial", 12), text_color="#333", anchor="w").grid(row=0, column=1, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=str(data.credits), font=("Arial", 12), text_color="#555", anchor="w").grid(row=0, column=2, sticky="ew", padx=10)
 
-        # Type Badge (Core/Elective)
-        ctype = data.course_type
-        bg = "#DBEAFE" if ctype == "Core" else "#F3E8FF" # Blue vs Purple
-        fg = "#1E40AF" if ctype == "Core" else "#7E22CE"
-        badge = ctk.CTkFrame(row, fg_color=bg, corner_radius=6, height=22)
-        badge.grid(row=0, column=3, sticky="w", padx=10)
-        ctk.CTkLabel(badge, text=ctype, font=("Arial", 10, "bold"), text_color=fg).pack(padx=8, pady=2)
-
-        prereq = data.prerequisites_str if data.prerequisites_str else 'None'
-        ctk.CTkLabel(row, text=prereq, text_color="gray", anchor="w").grid(row=0, column=4, sticky="ew", padx=10)
+        # Prerequisites
+        prereq = data.prerequisites_str if hasattr(data, 'prerequisites_str') and data.prerequisites_str else '-'
+        ctk.CTkLabel(row, text=prereq, font=("Arial", 12), text_color="gray", anchor="w").grid(row=0, column=3, sticky="ew", padx=10)
 
         # Actions
         actions = ctk.CTkFrame(row, fg_color="transparent")
-        actions.grid(row=0, column=5)
-        ctk.CTkButton(actions, text="✎", width=30, fg_color="transparent", text_color=self.COLOR_EDIT, hover_color="#EFF6FF", 
-                      font=("Arial", 16), command=lambda: self.open_edit_dialog(data)).pack(side="left")
-        ctk.CTkButton(actions, text="🗑", width=30, fg_color="transparent", text_color=self.COLOR_DELETE, hover_color="#FEF2F2", 
-                      font=("Arial", 16), command=lambda: self.delete_item(data.course_id)).pack(side="left")
+        actions.grid(row=0, column=4, sticky="w", padx=5)
+        
+        self._action_btn(actions, "Edit", "#3B82F6", lambda: self.open_edit_dialog(data))
+        self._action_btn(actions, "Del", "#EF4444", lambda: self.delete_item(data.course_id))
 
-        ctk.CTkFrame(self.scroll_area, height=1, fg_color="#F3F4F6").pack(fill="x")
+    def _action_btn(self, parent, text, color, cmd):
+        ctk.CTkButton(
+            parent, text=text, width=40, height=30, 
+            fg_color="transparent", text_color=color, hover_color="#F3F4F6",
+            font=("Arial", 11, "bold"), command=cmd
+        ).pack(side="left", padx=2)
 
     def delete_item(self, cid):
         if messagebox.askyesno("Confirm", "Delete this course?"):
@@ -94,7 +110,7 @@ class CoursesFrame(ctk.CTkFrame):
 
 
 # ==========================================
-# POPUP: ADD/EDIT COURSE
+# POPUP: ADD/EDIT COURSE (ĐÃ BỎ TYPE)
 # ==========================================
 class CourseDialog(ctk.CTkToplevel):
     def __init__(self, parent, title, controller, callback, data=None):
@@ -103,61 +119,66 @@ class CourseDialog(ctk.CTkToplevel):
         self.callback = callback
         self.data = data
         self.title(title)
-        self.geometry("750x500")
+        self.geometry("700x450") # Thu nhỏ lại chút vì bớt trường
         self.resizable(False, False)
         self.transient(parent)
         self.configure(fg_color="white")
         
-        ctk.CTkLabel(self, text=title, font=("Arial", 18, "bold"), text_color="#333").pack(pady=20, anchor="w", padx=30)
+        ctk.CTkLabel(self, text=title, font=("Arial", 20, "bold"), text_color="#111827").pack(pady=25, anchor="w", padx=40)
 
         # Form Container
         form = ctk.CTkFrame(self, fg_color="transparent")
-        form.pack(fill="both", expand=True, padx=30)
+        form.pack(fill="both", expand=True, padx=40)
 
         # Row 1: Code & Name
         self.ent_code = self._add_field(form, 0, 0, "Course Code", "e.g. CS101", width=200)
-        self.ent_name = self._add_field(form, 0, 1, "Course Name", "Introduction to Programming", width=420)
+        self.ent_name = self._add_field(form, 0, 1, "Course Name", "Introduction to Programming", width=400)
 
-        # Row 2: Credits & Type
+        # Row 2: Credits
         self.ent_credits = self._add_field(form, 1, 0, "Credits", "3", width=200)
         
-        ctk.CTkLabel(form, text="Type", font=("Arial", 12, "bold"), text_color="#555").grid(row=2, column=1, sticky="w", pady=(10, 5))
-        self.combo_type = ctk.CTkComboBox(form, values=["Core", "Elective"], width=420, height=35)
-        self.combo_type.grid(row=3, column=1, sticky="w", padx=(10, 0))
-
         # Row 3: Description (TextArea)
-        ctk.CTkLabel(form, text="Description", font=("Arial", 12, "bold"), text_color="#555").grid(row=4, column=0, sticky="w", pady=(10, 5))
-        self.txt_desc = ctk.CTkTextbox(form, height=80, width=640, border_color="#E5E7EB", border_width=1)
-        self.txt_desc.grid(row=5, column=0, columnspan=2, sticky="w")
+        ctk.CTkLabel(form, text="Description", font=("Arial", 12, "bold"), text_color="#374151").grid(row=2, column=0, sticky="w", pady=(10, 5))
+        self.txt_desc = ctk.CTkTextbox(form, height=60, width=620, border_color="#E5E7EB", border_width=1, fg_color="white", text_color="black")
+        self.txt_desc.grid(row=3, column=0, columnspan=2, sticky="w")
 
         # Row 4: Prerequisites
-        ctk.CTkLabel(form, text="Prerequisites (comma separated codes)", font=("Arial", 12, "bold"), text_color="#555").grid(row=6, column=0, columnspan=2, sticky="w", pady=(10, 5))
-        self.ent_prereq = ctk.CTkEntry(form, placeholder_text="e.g. CS101, MATH101", width=640, height=35)
-        self.ent_prereq.grid(row=7, column=0, columnspan=2, sticky="w")
+        ctk.CTkLabel(form, text="Prerequisites (comma separated codes)", font=("Arial", 12, "bold"), text_color="#374151").grid(row=4, column=0, columnspan=2, sticky="w", pady=(10, 5))
+        self.ent_prereq = ctk.CTkEntry(form, placeholder_text="e.g. CS101, MATH101", width=620, height=40, border_color="#E5E7EB")
+        self.ent_prereq.grid(row=5, column=0, columnspan=2, sticky="w")
 
         # Buttons
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=30, pady=30)
-        ctk.CTkButton(btn_frame, text="Cancel", fg_color="white", border_color="#DDD", border_width=1, text_color="black", command=self.destroy).pack(side="left")
-        ctk.CTkButton(btn_frame, text="Save Course", fg_color="#10B981", hover_color="#059669", command=self.save).pack(side="right")
+        btn_frame.pack(fill="x", padx=40, pady=30)
+        
+        ctk.CTkButton(
+            btn_frame, text="Cancel", fg_color="white", border_color="#D1D5DB", border_width=1, 
+            text_color="black", hover_color="#F3F4F6", width=100, height=40,
+            command=self.destroy
+        ).pack(side="left")
+        
+        ctk.CTkButton(
+            btn_frame, text="Save Course", fg_color="#0F766E", hover_color="#115E59", 
+            width=140, height=40, font=("Arial", 13, "bold"),
+            command=self.save
+        ).pack(side="right")
 
         # Fill Data if Edit
         if data:
             self.ent_code.insert(0, data.course_code)
             self.ent_name.insert(0, data.course_name)
             self.ent_credits.insert(0, str(data.credits))
-            self.combo_type.set(data.course_type)
             self.txt_desc.insert("0.0", data.description if data.description else '')
-            self.ent_prereq.insert(0, data.prerequisites_str if data.prerequisites_str else '')
-            self.ent_code.configure(state="disabled") # Code usually unique
+            self.ent_prereq.insert(0, data.prerequisites_str if hasattr(data, 'prerequisites_str') and data.prerequisites_str else '')
+            self.ent_code.configure(state="disabled")
 
         self.lift()
         self.focus_force()
         self.after(100, self.grab_set)
 
     def _add_field(self, parent, r, c, label, placeholder, width=300):
-        ctk.CTkLabel(parent, text=label, font=("Arial", 12, "bold"), text_color="#555").grid(row=r*2, column=c, sticky="w", pady=(10, 5))
-        ent = ctk.CTkEntry(parent, placeholder_text=placeholder, width=width, height=35)
+        ctk.CTkLabel(parent, text=label, font=("Arial", 12, "bold"), text_color="#374151").grid(row=r*2, column=c, sticky="w", pady=(10, 5))
+        ent = ctk.CTkEntry(parent, placeholder_text=placeholder, width=width, height=40, border_color="#E5E7EB")
         ent.grid(row=r*2+1, column=c, sticky="w", padx=(0 if c==0 else 10, 0))
         return ent
 
@@ -168,16 +189,16 @@ class CourseDialog(ctk.CTkToplevel):
             messagebox.showwarning("Input Error", "Credits must be a number", parent=self)
             return
 
+        # Gọi controller mà không truyền Type nữa
         if self.data: # Update
             success, msg = self.controller.update_course(
                 self.data.course_id, self.ent_code.get(), self.ent_name.get(),
-                credits, self.combo_type.get(), 
+                credits, 
                 self.txt_desc.get("0.0", "end").strip(), self.ent_prereq.get()
             )
         else: # Create
             success, msg = self.controller.create_course(
                 self.ent_code.get(), self.ent_name.get(), credits, 
-                self.combo_type.get(), 
                 self.txt_desc.get("0.0", "end").strip(), self.ent_prereq.get()
             )
 

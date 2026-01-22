@@ -31,12 +31,21 @@ class Security:
         if not stored_hash or not provided_password:
             return False
             
-        # Chuyển đổi về bytes để so sánh
-        stored_bytes = stored_hash.encode('utf-8')
-        provided_bytes = provided_password.encode('utf-8')
-        
-        # Bcrypt tự trích xuất salt từ stored_hash để so sánh
-        return bcrypt.checkpw(provided_bytes, stored_bytes)
+        try:
+            # Chuyển đổi về bytes để so sánh
+            stored_bytes = stored_hash.encode('utf-8')
+            provided_bytes = provided_password.encode('utf-8')
+            
+            # Bcrypt tự trích xuất salt từ stored_hash để so sánh
+            return bcrypt.checkpw(provided_bytes, stored_bytes)
+            
+        except ValueError as e:
+            # Lỗi này xảy ra nếu stored_hash không phải chuẩn Bcrypt
+            print(f"⚠️ Bcrypt Error: {e}") # Để xem lỗi chi tiết
+            return False
+        except Exception as e:
+            print(f"System Error: {e}")
+            return False
 
     @staticmethod
     def validate_password_strength(password: str) -> bool:

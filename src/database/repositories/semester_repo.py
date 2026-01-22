@@ -6,6 +6,11 @@ class SemesterRepository(BaseRepository):
         sql = "SELECT * FROM Semesters ORDER BY start_date DESC"
         return [Semester.from_db_row(row) for row in self.execute_query(sql, fetch_all=True)]
 
+    def get_by_id(self, semester_id):
+        sql = "SELECT * FROM Semesters WHERE semester_id = %s"
+        row = self.execute_query(sql, (semester_id,), fetch_one=True)
+        return Semester.from_db_row(row) if row else None
+
     def add(self, sem):
         try:
             self.execute_query("INSERT INTO Semesters (name, start_date, end_date, status) VALUES (%s, %s, %s, %s)",

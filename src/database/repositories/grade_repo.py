@@ -71,7 +71,12 @@ class GradeRepository(BaseRepository):
 
     # Các method bắt buộc của BaseRepo (nếu không dùng thì để pass hoặc raise)
     def get_all(self): pass
-    def get_by_id(self, id): pass
+
+    def get_by_id(self, grade_id):
+        sql = "SELECT * FROM Grades WHERE grade_id = %s"
+        row = self.execute_query(sql, (grade_id,), fetch_one=True)
+        return Grade.from_db_row(row) if row else None
+
     def add(self, entity): pass 
     def update(self, entity): pass
     def delete(self, id): pass

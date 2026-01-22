@@ -171,3 +171,11 @@ class StudentRepository(BaseRepository):
         finally:
             cursor.close()
             conn.close()
+
+    def count_all(self):
+        try:
+            result = self.execute_query("SELECT COUNT(*) as total FROM Students", fetch_one=True)
+            return result['total'] if result else 0
+        except Exception as e:
+            print(f"Error counting students: {e}")
+            return 0

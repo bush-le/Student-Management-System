@@ -9,7 +9,7 @@ class DepartmentRepository(BaseRepository):
     def get_by_id(self, dept_id):
         sql = "SELECT * FROM Departments WHERE dept_id = %s"
         row = self.execute_query(sql, (dept_id,), fetch_one=True)
-        return Department.from_db_row(row)
+        return Department.from_db_row(row) if row else None
 
     # Nếu Admin cần quản lý Khoa (Thêm/Sửa/Xóa Khoa) thì thêm add/update/delete vào đây
     def add(self, dept):

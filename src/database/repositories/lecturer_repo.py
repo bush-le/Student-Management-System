@@ -93,3 +93,12 @@ class LecturerRepository(BaseRepository):
         """
         # Trả về list dict để dễ hiển thị lên bảng
         return self.execute_query(sql, (lecturer_id,), fetch_all=True)
+
+    def count_all(self):
+        try:
+            # Đếm số user có role là 'Lecturer'
+            result = self.execute_query("SELECT COUNT(*) as total FROM Users WHERE role = 'Lecturer'", fetch_one=True)
+            return result['total'] if result else 0
+        except Exception as e:
+            print(f"Error counting lecturers: {e}")
+            return 0

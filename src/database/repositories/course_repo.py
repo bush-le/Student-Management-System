@@ -6,6 +6,11 @@ class CourseRepository(BaseRepository):
         sql = "SELECT * FROM Courses ORDER BY course_code ASC"
         return [Course.from_db_row(row) for row in self.execute_query(sql, fetch_all=True)]
 
+    def get_by_id(self, course_id):
+        sql = "SELECT * FROM Courses WHERE course_id = %s"
+        row = self.execute_query(sql, (course_id,), fetch_one=True)
+        return Course.from_db_row(row) if row else None
+
     def add(self, course):
         count = self.execute_query("SELECT COUNT(*) as c FROM Courses WHERE course_code = %s", (course.course_code,), fetch_one=True)
         if count['c'] > 0: return False, "Course code exists"
@@ -32,3 +37,11 @@ class CourseRepository(BaseRepository):
             self.execute_query("DELETE FROM Courses WHERE course_id=%s", (course_id,))
             return True, "Course deleted"
         except Exception as e: return False, str(e)
+
+    def count_all(self):
+        try:
+            result = self.execute_query("SELECT COUNT(*) as total FROM Courses", fetch_one=True)
+            return result['total'] if result else 0
+        except Exception as e:
+            print(f"Error counting courses: {e}")
+            return 0

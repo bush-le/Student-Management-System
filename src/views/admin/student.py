@@ -4,102 +4,99 @@ from controllers.admin_controller import AdminController
 
 class StudentsFrame(ctk.CTkFrame):
     def __init__(self, parent, user_id):
-        super().__init__(parent, fg_color="white")
+        super().__init__(parent, fg_color="transparent")
         self.controller = AdminController(user_id)
         
-        # Colors
-        self.COLOR_PRIMARY = "#10B981"
-        self.COLOR_EDIT = "#3B82F6"
-        self.COLOR_DELETE = "#EF4444"
-
-        # 1. Header
-        self.create_header()
-
-        # 2. Search Bar
-        self.create_search_bar()
-
-        # 3. Table Header
+        self.create_toolbar()
         self.create_table_header()
 
-        # 4. List Container
-        self.scroll_area = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.scroll_area.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        self.scroll_area = ctk.CTkScrollableFrame(self, fg_color="white", corner_radius=10)
+        self.scroll_area.pack(fill="both", expand=True, pady=(0, 20))
 
-        # 5. Load Data
         self.load_data()
 
-    def create_header(self):
-        header = ctk.CTkFrame(self, fg_color="transparent", height=60)
-        header.pack(fill="x", padx=20, pady=20)
+    def create_toolbar(self):
+        toolbar = ctk.CTkFrame(self, fg_color="transparent", height=50)
+        toolbar.pack(fill="x", pady=(0, 15))
         
-        ctk.CTkLabel(header, text="MANAGE STUDENTS", font=("Arial", 20, "bold"), text_color="#115E59").pack(side="left")
-
-        # Action Buttons
-        btn_box = ctk.CTkFrame(header, fg_color="transparent")
-        btn_box.pack(side="right")
+        # Search Entry (Không icon)
+        self.search_ent = ctk.CTkEntry(
+            toolbar, placeholder_text="Search student...", 
+            width=300, height=40, border_color="#E5E7EB", border_width=1
+        )
+        self.search_ent.pack(side="left")
         
-        ctk.CTkButton(btn_box, text="Import CSV", fg_color="white", text_color="#333", border_width=1, border_color="#D1D5DB", width=100, command=self.import_csv).pack(side="left", padx=10)
-        ctk.CTkButton(btn_box, text="+ Add Student", fg_color=self.COLOR_PRIMARY, hover_color="#059669", width=120, command=self.open_add_dialog).pack(side="left")
+        # Buttons (Không icon)
+        btn_import = ctk.CTkButton(
+            toolbar, text="Import CSV", fg_color="white", text_color="#333", 
+            border_color="#D1D5DB", border_width=1, hover_color="#F3F4F6", height=40,
+            command=self.import_csv
+        )
+        btn_import.pack(side="right", padx=10)
 
-    def create_search_bar(self):
-        search_frame = ctk.CTkFrame(self, fg_color="transparent")
-        search_frame.pack(fill="x", padx=20, pady=(0, 15))
-        entry = ctk.CTkEntry(search_frame, placeholder_text="Search by name, ID, or email...", width=300, height=35)
-        entry.pack(side="left")
-        # Logic search có thể thêm sau (bind KeyRelease)
+        btn_add = ctk.CTkButton(
+            toolbar, text="+ Add Student", fg_color="#0F766E", hover_color="#115E59", height=40,
+            command=self.open_add_dialog
+        )
+        btn_add.pack(side="right")
 
     def create_table_header(self):
-        h_frame = ctk.CTkFrame(self, fg_color="#F9FAFB", height=45, corner_radius=0)
-        h_frame.pack(fill="x", padx=20)
+        h_frame = ctk.CTkFrame(self, fg_color="#E5E7EB", height=40, corner_radius=5)
+        h_frame.pack(fill="x", pady=(0, 5))
         
-        cols = [("STUDENT ID", 1), ("NAME", 2), ("DEPARTMENT", 2), ("EMAIL", 2), ("STATUS", 1), ("ACTIONS", 1)]
-        for i, (text, w) in enumerate(cols):
+        columns = [("ID", 1), ("FULL NAME", 3), ("DEPARTMENT", 2), ("EMAIL", 3), ("STATUS", 1), ("ACTIONS", 2)]
+        
+        for i, (col_name, w) in enumerate(columns):
             h_frame.grid_columnconfigure(i, weight=w)
-            ctk.CTkLabel(h_frame, text=text, font=("Arial", 11, "bold"), text_color="gray", anchor="w" if i<5 else "center").grid(row=0, column=i, sticky="ew", padx=10, pady=12)
+            ctk.CTkLabel(
+                h_frame, text=col_name, font=("Arial", 11, "bold"), text_color="#374151", anchor="w"
+            ).grid(row=0, column=i, sticky="ew", padx=10, pady=8)
 
     def load_data(self):
         for widget in self.scroll_area.winfo_children(): widget.destroy()
-        students = self.controller.get_all_students()
-        for s in students: self.create_row(s)
+        try:
+            students = self.controller.get_all_students()
+            for idx, s in enumerate(students):
+                self.create_row(s, idx)
+        except Exception as e:
+            print(f"Error loading data: {e}")
 
-    def create_row(self, data):
-        row = ctk.CTkFrame(self.scroll_area, fg_color="white", corner_radius=0)
-        row.pack(fill="x", pady=1)
+    def create_row(self, data, idx):
+        bg_color = "white" if idx % 2 == 0 else "#F9FAFB"
+        row = ctk.CTkFrame(self.scroll_area, fg_color=bg_color, corner_radius=0, height=45)
+        row.pack(fill="x")
         
-        weights = [1, 2, 2, 2, 1, 1]
-        for i, w in enumerate(weights): row.grid_columnconfigure(i, weight=w)
+        weights = [1, 3, 2, 3, 1, 2]
+        for i, w in enumerate(weights): 
+            row.grid_columnconfigure(i, weight=w)
 
-        # Columns
-        ctk.CTkLabel(row, text=data.student_code, font=("Arial", 12, "bold"), text_color="#333", anchor="w").grid(row=0, column=0, sticky="ew", padx=10, pady=15)
-        ctk.CTkLabel(row, text=data.full_name, anchor="w").grid(row=0, column=1, sticky="ew", padx=10)
-        
+        ctk.CTkLabel(row, text=data.student_code, font=("Arial", 12, "bold"), text_color="#333", anchor="w").grid(row=0, column=0, sticky="ew", padx=10, pady=12)
+        ctk.CTkLabel(row, text=data.full_name, font=("Arial", 12), text_color="#333", anchor="w").grid(row=0, column=1, sticky="ew", padx=10)
         dept = data.dept_name if data.dept_name else 'N/A'
-        ctk.CTkLabel(row, text=dept, anchor="w").grid(row=0, column=2, sticky="ew", padx=10)
-        ctk.CTkLabel(row, text=data.email, text_color="gray", anchor="w").grid(row=0, column=3, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=dept, font=("Arial", 12), text_color="#555", anchor="w").grid(row=0, column=2, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=data.email, font=("Arial", 12), text_color="#555", anchor="w").grid(row=0, column=3, sticky="ew", padx=10)
 
-        # Status
         status = data.academic_status
-        color = "#166534" if status == 'ACTIVE' else "#991B1B"
-        bg = "#DCFCE7" if status == 'ACTIVE' else "#FEE2E2"
-        badge = ctk.CTkFrame(row, fg_color=bg, corner_radius=10)
-        badge.grid(row=0, column=4)
-        ctk.CTkLabel(badge, text=status, font=("Arial", 10, "bold"), text_color=color).pack(padx=8, pady=2)
+        status_col = "#059669" if status == 'ACTIVE' else "#DC2626"
+        ctk.CTkLabel(row, text=status, font=("Arial", 10, "bold"), text_color=status_col, anchor="w").grid(row=0, column=4, sticky="ew", padx=10)
 
-        # Actions
-        actions = ctk.CTkFrame(row, fg_color="transparent")
-        actions.grid(row=0, column=5)
+        # Actions (Thay icon bằng text)
+        action_frame = ctk.CTkFrame(row, fg_color="transparent")
+        action_frame.grid(row=0, column=5, sticky="w", padx=5)
         
-        # View Record Btn
-        ctk.CTkButton(actions, text="📊", width=30, fg_color="transparent", text_color="gray", hover_color="#EFF6FF", 
-                      font=("Arial", 16), command=lambda: self.open_academic_record(data)).pack(side="left")
-        # Edit Btn
-        ctk.CTkButton(actions, text="✎", width=30, fg_color="transparent", text_color=self.COLOR_EDIT, hover_color="#EFF6FF", 
-                      font=("Arial", 16), command=lambda: self.open_edit_dialog(data)).pack(side="left")
-        # Delete Btn
-        ctk.CTkButton(actions, text="🗑", width=30, fg_color="transparent", text_color=self.COLOR_DELETE, hover_color="#FEF2F2", 
-                      font=("Arial", 16), command=lambda: self.delete_item(data.student_id)).pack(side="left")
+        self._action_btn(action_frame, "View", "#6366F1", lambda: self.open_academic_record(data))
+        self._action_btn(action_frame, "Edit", "#3B82F6", lambda: self.open_edit_dialog(data))
+        self._action_btn(action_frame, "Del", "#EF4444", lambda: self.delete_item(data.student_id))
 
-        ctk.CTkFrame(self.scroll_area, height=1, fg_color="#F3F4F6").pack(fill="x")
+    def _action_btn(self, parent, text, color, cmd):
+        # Sử dụng text thay vì icon
+        ctk.CTkButton(
+            parent, text=text, width=40, height=30, 
+            fg_color="transparent", text_color=color, hover_color="#F3F4F6",
+            font=("Arial", 11, "bold"), command=cmd
+        ).pack(side="left", padx=2)
+
+    # --- CÁC HÀM LOGIC (Giữ nguyên như cũ) ---
 
     def import_csv(self):
         file_path = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv")])
@@ -168,7 +165,7 @@ class StudentDialog(ctk.CTkToplevel):
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(fill="x", padx=30, pady=30)
         ctk.CTkButton(btn_frame, text="Cancel", fg_color="white", border_color="#DDD", border_width=1, text_color="black", command=self.destroy).pack(side="left")
-        ctk.CTkButton(btn_frame, text="Save Student", fg_color="#10B981", command=self.save).pack(side="right")
+        ctk.CTkButton(btn_frame, text="Save Student", fg_color="#0F766E", command=self.save).pack(side="right")
 
         # Fill Data if Edit
         if data:

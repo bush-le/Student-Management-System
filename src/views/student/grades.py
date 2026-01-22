@@ -23,6 +23,10 @@ class GradesFrame(ctk.CTkFrame):
         self.create_grades_table()
 
     def create_summary_card(self):
+        # Lấy dữ liệu GPA từ Controller
+        data = self.controller.view_grades() # Trả về {'transcript': [], 'cumulative_gpa': 3.5}
+        gpa_val = data.get('cumulative_gpa', 0.0)
+
         # Giảm ipady từ 15 xuống 10 để card mỏng hơn
         card = ctk.CTkFrame(self, fg_color="#F0F9FF", corner_radius=6)
         card.pack(fill="x", padx=30, pady=(0, 20), ipady=10)
@@ -35,7 +39,7 @@ class GradesFrame(ctk.CTkFrame):
         gpa_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
         gpa_frame.pack(anchor="w")
         ctk.CTkLabel(gpa_frame, text="Cumulative GPA:", font=("Arial", 14, "bold"), text_color="#333").pack(side="left")
-        ctk.CTkLabel(gpa_frame, text="3.80", font=("Arial", 18, "bold"), text_color="#2563EB").pack(side="left", padx=5)
+        ctk.CTkLabel(gpa_frame, text=f"{gpa_val:.2f}", font=("Arial", 18, "bold"), text_color="#2563EB").pack(side="left", padx=5)
 
         # Class Row
         class_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
@@ -50,7 +54,7 @@ class GradesFrame(ctk.CTkFrame):
         
         self.semester_cb = ctk.CTkComboBox(
             filter_frame, 
-            values=["All Semesters", "Fall 2024", "Spring 2025"],
+            values=["All Semesters"],
             width=150, height=32,
             fg_color="white", text_color="#333",
             button_color="white", button_hover_color="#F3F4F6",
@@ -104,32 +108,29 @@ class GradesFrame(ctk.CTkFrame):
     def _create_row(self, r, grade_obj):
         # Pady chung cho hàng -> Giảm xuống 8 để các dòng sát nhau hơn
         common_pady = 8
+        # Helper format điểm
+        def fmt(val): return str(val) if val is not None else "-"
 
+        # SỬA QUAN TRỌNG: Dùng grade_obj.attribute thay vì dictionary
         # 0: Name (grade_obj.course_name được map trong Repo)
-        name = grade_obj.course_name if grade_obj.course_name else "Unknown Course"
+        name = grade_obj.course_name if grade_obj.course_name else "Unknown"
         ctk.CTkLabel(
             self.table_container, text=name, 
             font=("Arial", 12, "bold"), text_color="#333"
         ).grid(row=r, column=0, sticky="w", padx=5, pady=common_pady)
 
-        # 1-4: Component Scores
-        # Helper để hiển thị "-" nếu chưa có điểm
-        def fmt(val): return str(val) if val is not None else "-"
-        
-        ctk.CTkLabel(self.table_container, text=fmt(grade_obj.attendance_score), font=("Arial", 12), text_color="gray").grid(row=r, column=1, sticky="ew", pady=common_pady)
-        
-        # Assignment (Giả sử DB chưa có cột này, để trống hoặc map cột khác)
-        ctk.CTkLabel(self.table_container, text="-", font=("Arial", 12), text_color="gray").grid(row=r, column=2, sticky="ew", pady=common_pady)
-        
-        ctk.CTkLabel(self.table_container, text=fmt(grade_obj.midterm), font=("Arial", 12), text_color="gray").grid(row=r, column=3, sticky="ew", pady=common_pady)
-        ctk.CTkLabel(self.table_container, text=fmt(grade_obj.final), font=("Arial", 12), text_color="gray").grid(row=r, column=4, sticky="ew", pady=common_pady)
+        # Các cột điểm
+        ctk.CTkLabel(self.table_container, text=fmt(grade_obj.attendance_score), font=("Arial", 12), text_color="gray").grid(row=r, column=1, sticky="ew")
+        ctk.CTkLabel(self.table_container, text="-", font=("Arial", 12), text_color="gray").grid(row=r, column=2, sticky="ew") # Assignment
+        ctk.CTkLabel(self.table_container, text=fmt(grade_obj.midterm), font=("Arial", 12), text_color="gray").grid(row=r, column=3, sticky="ew")
+        ctk.CTkLabel(self.table_container, text=fmt(grade_obj.final), font=("Arial", 12), text_color="gray").grid(row=r, column=4, sticky="ew")
 
-        # 5: Final Grade (Total)
-        total_text = str(grade_obj.total) if grade_obj.total is not None else "-"
+        # Tổng kết
+        total = fmt(grade_obj.total)
         ctk.CTkLabel(
-            self.table_container, text=total_text, 
+            self.table_container, text=total, 
             font=("Arial", 13, "bold"), text_color="#2A9D8F"
-        ).grid(row=r, column=5, sticky="ew", pady=common_pady)
+        ).grid(row=r, column=5, sticky="ew")
 
         # Đường kẻ mờ phân cách các hàng
         ctk.CTkFrame(self.table_container, height=1, fg_color="#F3F4F6").grid(row=r+1, column=0, columnspan=6, sticky="ew")

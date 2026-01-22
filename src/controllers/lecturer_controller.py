@@ -1,92 +1,59 @@
-from database.connection import DatabaseConnection
+from database.repositories.lecturer_repo import LecturerRepository
+from database.repositories.class_repo import ClassRepository
+from database.repositories.grade_repo import GradeRepository
 from models.academic.grade import Grade
 
 class LecturerController:
     def __init__(self, user_id):
         self.user_id = user_id
-        # Helper: Get lecturer_id from logged-in user_id
-        self.lecturer_id = self._fetch_lecturer_id()
-
-    def _fetch_lecturer_id(self):
-        conn = DatabaseConnection.get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute("SELECT lecturer_id FROM Lecturers WHERE user_id = %s", (self.user_id,))
-            res = cursor.fetchone()
-            return res[0] if res else None
-        finally:
-            conn.close()
+        
+        # Khởi tạo Repositories
+        self.lecturer_repo = LecturerRepository()
+        self.class_repo = ClassRepository()
+        self.grade_repo = GradeRepository()
+        
+        # Load thông tin giảng viên ngay khi khởi tạo
+        self.current_lecturer = self.lecturer_repo.get_by_user_id(user_id)
 
     def get_teaching_schedule(self):
-        """FR-10: View Assigned Schedule [cite: 86-90]"""
-        if not self.lecturer_id: return []
-        
-        conn = DatabaseConnection.get_connection()
-        try:
-            cursor = conn.cursor(dictionary=True)
-            query = """
-                SELECT cc.class_id, c.course_name, cc.schedule, cc.room, cc.max_capacity,
-                       (SELECT COUNT(*) FROM Grades g WHERE g.class_id = cc.class_id) as enrolled_count
-                FROM Course_Classes cc
-                JOIN Courses c ON cc.course_id = c.course_id
-                WHERE cc.lecturer_id = %s
-            """
-            cursor.execute(query, (self.lecturer_id,))
-            return cursor.fetchall()
-        finally:
-            conn.close()
+        """
+        FR-10: View Assigned Schedule
+        """
+        if not self.current_lecturer:
+            return []
+            
+        return self.class_repo.get_schedule_by_lecturer(self.current_lecturer.lecturer_id)
 
     def get_class_student_list(self, class_id):
-        """FR-11: View Student List [cite: 91-94]"""
-        conn = DatabaseConnection.get_connection()
-        try:
-            cursor = conn.cursor(dictionary=True)
-            query = """
-                SELECT s.student_id, s.student_code, u.full_name, 
-                       g.attendance_score, g.midterm, g.final, g.total, g.grade_id, g.is_locked
-                FROM Grades g
-                JOIN Students s ON g.student_id = s.student_id
-                JOIN Users u ON s.user_id = u.user_id
-                WHERE g.class_id = %s
-                ORDER BY s.student_code ASC
-            """
-            cursor.execute(query, (class_id,))
-            return cursor.fetchall()
-        finally:
-            conn.close()
+        """
+        FR-11: View Student List
+        """
+        # Tái sử dụng hàm đã có trong GradeRepo
+        return self.grade_repo.get_by_class(class_id)
 
     def input_grade(self, student_id, class_id, attendance, midterm, final):
         """
-        FR-12 & FR-13: Enter/Update Grades [cite: 95-107].
-        Use Grade Model for calculations.
+        FR-12 & FR-13: Enter/Update Grades
         """
-        # 1. Calculate total score and letter grade
-        grade_obj = Grade(None, student_id, class_id, attendance, midterm, final)
-        total = grade_obj.calculate_total()
-        letter = grade_obj.letter_grade
+        # 1. Tìm grade_id tương ứng
+        grade_id = self.grade_repo.get_id_by_enrollment(student_id, class_id)
+        
+        if not grade_id:
+            return False, "Enrollment record not found."
 
-        conn = DatabaseConnection.get_connection()
-        try:
-            cursor = conn.cursor()
-            
-            # 2. Check grade lock status (FR-12) [cite: 102]
-            check_sql = "SELECT is_locked FROM Grades WHERE student_id = %s AND class_id = %s"
-            cursor.execute(check_sql, (student_id, class_id))
-            row = cursor.fetchone()
-            
-            if row and row[0] == 1: # True
-                return False, "This grade record is locked and cannot be edited."
+        # 2. Tạo object Grade chứa dữ liệu mới
+        # Lưu ý: Không cần tính total/letter ở đây, GradeRepo.update_scores sẽ tự gọi model để tính
+        grade_obj = Grade(
+            grade_id=grade_id,
+            student_id=student_id,
+            class_id=class_id,
+            attendance_score=attendance,
+            midterm=midterm,
+            final=final,
+            total=0,       # Sẽ được tính lại trong Repo
+            letter_grade="" # Sẽ được tính lại trong Repo
+        )
 
-            # 3. Update database
-            update_sql = """
-                UPDATE Grades 
-                SET attendance_score=%s, midterm=%s, final=%s, total=%s, letter_grade=%s, updated_at=NOW()
-                WHERE student_id=%s AND class_id=%s
-            """
-            cursor.execute(update_sql, (attendance, midterm, final, total, letter, student_id, class_id))
-            conn.commit()
-            return True, "Grade saved successfully."
-        except Exception as e:
-            return False, str(e)
-        finally:
-            conn.close()
+        # 3. Gọi Repo cập nhật
+        # Repo sẽ tự kiểm tra is_locked và trả về lỗi nếu lớp đã khóa điểm
+        return self.grade_repo.update_scores(grade_obj)

@@ -1,132 +1,75 @@
-from database.connection import DatabaseConnection
-from models.student import Student
-from models.academic.grade import Grade
+from database.repositories.student_repo import StudentRepository
+from database.repositories.class_repo import ClassRepository
+from database.repositories.grade_repo import GradeRepository
 
 class StudentController:
     def __init__(self, user_id):
         self.user_id = user_id
+        
+        # Khởi tạo Repositories
+        self.student_repo = StudentRepository()
+        self.class_repo = ClassRepository()
+        self.grade_repo = GradeRepository()
+        
+        # Load thông tin sinh viên ngay khi khởi tạo
+        # Giúp các hàm sau không cần query lại ID
+        self.current_student = self.student_repo.get_by_user_id(user_id)
 
     def view_profile(self):
         """
-        FR-05: View Personal Information [cite: 58-62].
-        Returns full Student object information.
+        FR-05: View Personal Information
+        Returns: Student Object
         """
-        conn = DatabaseConnection.get_connection()
-        try:
-            cursor = conn.cursor(dictionary=True)
-            # Join Students and Users tables to get full info
-            query = """
-                SELECT u.*, s.* FROM Students s
-                JOIN Users u ON s.user_id = u.user_id
-                WHERE u.user_id = %s
-            """
-            cursor.execute(query, (self.user_id,))
-            data = cursor.fetchone()
-            
-            if data:
-                # Separate data to initialize Student Model correctly
-                # Note: Need to filter User and Student fields carefully
-                # Here assuming data contains all necessary keys
-                return Student(
-                    user_data={k: v for k, v in data.items() if k in ['user_id', 'username', 'password', 'full_name', 'email', 'phone', 'role', 'status']},
-                    student_id=data['student_id'],
-                    student_code=data['student_code'],
-                    major=data['major'],
-                    dept_id=data['dept_id'],
-                    academic_year=data['academic_year'],
-                    gpa=data['gpa'],
-                    academic_status=data['academic_status']
-                )
-            return None
-        finally:
-            conn.close()
-
-    def update_profile(self, phone, email, address):
-        """
-        FR-06: Update Personal Information [cite: 63-68].
-        Only allow updating contact information.
-        """
-        # Validate input (use utils/validators.py if available)
-        if not phone or not email:
-            return False, "Phone and Email are required."
-
-        conn = DatabaseConnection.get_connection()
-        try:
-            cursor = conn.cursor()
-            # Update Users table (General information)
-            query = "UPDATE Users SET phone = %s, email = %s WHERE user_id = %s"
-            # Note: Need to add address column to Users or Students table if DB design has it (Data Model page 35 doesn't show address clearly, but FR-06 mentions it).
-            # Assuming address is in Students table if needed.
-            cursor.execute(query, (phone, email, self.user_id))
-            conn.commit()
-            return True, "Profile updated successfully."
-        except Exception as e:
-            return False, str(e)
-        finally:
-            conn.close()
+        return self.current_student
 
     def update_contact_info(self, email, phone, address):
-        """Cập nhật thông tin liên hệ của sinh viên"""
-        conn = DatabaseConnection.get_connection()
-        try:
-            cursor = conn.cursor()
-            query = """
-                UPDATE Users 
-                SET email = %s, phone = %s, address = %s 
-                WHERE user_id = %s
-            """
-            cursor.execute(query, (email, phone, address, self.user_id))
-            conn.commit()
-            return True, "Profile updated successfully!"
-        except Exception as e:
-            return False, f"Update failed: {str(e)}"
-        finally:
-            conn.close()
+        """
+        FR-06: Update Personal Information
+        """
+        if not self.current_student:
+            return False, "Student profile not found."
+
+        # Cập nhật dữ liệu vào Object hiện tại
+        self.current_student.email = email
+        self.current_student.phone = phone
+        self.current_student.address = address # Đảm bảo Model User/Student có field address
+
+        # Gọi Repo để lưu xuống DB
+        return self.student_repo.update_contact_info(self.current_student)
 
     def view_schedule(self):
         """
-        FR-07: View Weekly Schedule [cite: 69-72].
+        FR-07: View Weekly Schedule
         """
-        conn = DatabaseConnection.get_connection()
-        try:
-            cursor = conn.cursor(dictionary=True)
-            # Get schedule based on classes the student has grades for (or is enrolled in)
-            query = """
-                SELECT c.course_name, cc.room, cc.schedule, l.lecturer_code, u.full_name as lecturer_name
-                FROM Grades g
-                JOIN Course_Classes cc ON g.class_id = cc.class_id
-                JOIN Courses c ON cc.course_id = c.course_id
-                LEFT JOIN Lecturers l ON cc.lecturer_id = l.lecturer_id
-                LEFT JOIN Users u ON l.user_id = u.user_id
-                JOIN Students s ON g.student_id = s.student_id
-                WHERE s.user_id = %s
-            """
-            cursor.execute(query, (self.user_id,))
-            return cursor.fetchall()
-        finally:
-            conn.close()
+        if not self.current_student: return []
+        
+        return self.class_repo.get_schedule_by_student(self.current_student.student_id)
 
     def view_grades(self):
         """
-        FR-08: View Academic Results [cite: 73-77].
+        FR-08: View Academic Results
         """
-        conn = DatabaseConnection.get_connection()
-        try:
-            cursor = conn.cursor(dictionary=True)
-            query = """
-                SELECT c.course_code, c.course_name, c.credits, 
-                       g.attendance_score, g.midterm, g.final, g.total, g.letter_grade
-                FROM Grades g
-                JOIN Course_Classes cc ON g.class_id = cc.class_id
-                JOIN Courses c ON cc.course_id = c.course_id
-                JOIN Students s ON g.student_id = s.student_id
-                WHERE s.user_id = %s
-            """
-            cursor.execute(query, (self.user_id,))
-            grades_data = cursor.fetchall()
-            
-            # Calculate cumulative GPA (Simplified logic)
-            # In reality need to calculate: Sum(Total * Credits) / Sum(Credits)
-            return grades_data
-        finally:
-            conn.close()
+        if not self.current_student: return []
+
+        # Sử dụng lại GradeRepo đã viết (trả về List[Grade Object])
+        grades = self.grade_repo.get_by_student(self.current_student.student_id)
+        
+        # Tính toán GPA tích lũy (Optional - Logic nghiệp vụ)
+        total_points = 0
+        total_credits = 0
+        point_map = {'A': 4.0, 'B': 3.0, 'C': 2.0, 'D': 1.0, 'F': 0.0}
+
+        for g in grades:
+            if g.letter_grade:
+                # Giả sử trong model Grade đã join lấy credits
+                cred = getattr(g, 'credits', 3) # Mặc định 3 nếu không lấy được
+                total_points += point_map.get(g.letter_grade, 0) * cred
+                total_credits += cred
+        
+        gpa = round(total_points / total_credits, 2) if total_credits > 0 else 0.0
+        
+        # Trả về dict chứa cả list điểm và GPA tổng
+        return {
+            "transcript": grades,
+            "cumulative_gpa": gpa
+        }

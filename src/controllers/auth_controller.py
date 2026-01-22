@@ -1,166 +1,118 @@
-from database.connection import DatabaseConnection
-from models.user import User, UserRole, UserStatus
+from datetime import datetime, timedelta
+from database.repositories.user_repo import UserRepository
 from utils.security import Security
 from utils.email_service import EmailService
-from datetime import datetime, timedelta
 
 class AuthController:
+    def __init__(self):
+        self.user_repo = UserRepository()
+
     def login(self, email, password):
         """
-        FR-01: User Login [cite: 29-35].
-        Validate email, password, account status. Returns (user_object, message).
+        Xử lý đăng nhập với logic khóa tài khoản (Lockout Mechanism)
         """
-        conn = DatabaseConnection.get_connection()
-        if not conn:
-            return None, "System Error: Could not connect to the database."
-        try:
-            cursor = conn.cursor(dictionary=True)
-            
-            # 1. Find user by email
-            query = "SELECT * FROM Users WHERE email = %s"
-            cursor.execute(query, (email,))
-            user_data = cursor.fetchone()
- 
-            # AF1: If user not found, return a generic error to prevent email enumeration.
-            if not user_data:
-                return None, "Invalid username or password."
- 
-            user = User(**user_data)
- 
-            # AF2: Check lock status (FR-01)
-            if user.status == 'LOCKED':
-                # Check if the lockout is temporary and has expired
-                if user.lockout_time:
-                    lockout_duration = timedelta(minutes=30)
-                    if datetime.now() > user.lockout_time + lockout_duration:
-                        # Lockout expired, so unlock the account and proceed
-                        cursor.execute("UPDATE Users SET status = 'ACTIVE', failed_login_attempts = 0, lockout_time = NULL WHERE user_id = %s", (user.user_id,))
-                        conn.commit()
-                        user.status = 'ACTIVE' # Update local object
-                    else:
-                        # Lockout is still active, calculate remaining time
-                        remaining_time = (user.lockout_time + lockout_duration) - datetime.now()
-                        minutes_left = round(remaining_time.total_seconds() / 60)
-                        return None, f"Account locked. Please try again in {minutes_left} minutes."
+        # 1. Tìm user qua Repository
+        user = self.user_repo.get_by_email(email)
+        
+        if not user:
+            return None, "Invalid username or password."
+
+        # 2. Kiểm tra trạng thái khóa (LOCKED)
+        if user.status == 'LOCKED':
+            if user.lockout_time:
+                # [cite_start]Logic: Kiểm tra hết hạn khóa (30 phút) [cite: 29-35]
+                lockout_duration = timedelta(minutes=30)
+                if datetime.now() > user.lockout_time + lockout_duration:
+                    # Hết hạn khóa -> Mở khóa
+                    self.user_repo.update_login_stats(user.user_id, 0, 'ACTIVE', None)
+                    user.status = 'ACTIVE' # Cập nhật object tạm
                 else:
-                    # Account was likely locked by an admin (no lockout time)
-                    return None, "Account is locked. Please contact an administrator."
- 
-            # 3. Verify password (NFR-09) [cite: 159]
-            if Security.verify_password(user.password, password):
-                # Reset failed login attempts if there were any
-                if user.failed_login_attempts > 0:
-                    cursor.execute("UPDATE Users SET failed_login_attempts = 0, lockout_time = NULL WHERE user_id = %s", (user.user_id,))
-                    conn.commit()
-                
-                return user, "Login successful."
+                    # Vẫn còn khóa -> Tính thời gian còn lại
+                    remaining = (user.lockout_time + lockout_duration) - datetime.now()
+                    minutes_left = round(remaining.total_seconds() / 60)
+                    return None, f"Account locked. Try again in {minutes_left} minutes."
             else:
-                # Increment failed login attempts and check for lockout
-                new_attempts = user.failed_login_attempts + 1
-                max_attempts = 5 # This should ideally be in a config file
-                
-                if new_attempts >= max_attempts:
-                    # AF2.1, AF2.2: Lock account and set lockout time
-                    cursor.execute("UPDATE Users SET failed_login_attempts = %s, status = 'LOCKED', lockout_time = NOW() WHERE user_id = %s", (new_attempts, user.user_id))
-                    user.status = 'LOCKED'
-                    msg = "Account locked due to multiple failed attempts. Please try again after 30 minutes."
-                else:
-                    cursor.execute("UPDATE Users SET failed_login_attempts = %s WHERE user_id = %s", (new_attempts, user.user_id))
-                    msg = "Invalid username or password."
-                
-                conn.commit()
-                user.failed_login_attempts = new_attempts
-                return user, msg
-        except Exception as e:
-            return None, f"System Error: {str(e)}"
-        finally:
-            if conn and conn.is_connected():
-                # cursor might not be defined if get_connection fails
-                if 'cursor' in locals() and cursor:
-                    cursor.close()
-                conn.close()
+                return None, "Account is locked administratively."
+
+        # 3. Kiểm tra mật khẩu
+        if Security.verify_password(password, user.password):
+            # Thành công: Reset số lần sai về 0 nếu cần
+            if user.failed_login_attempts > 0:
+                self.user_repo.update_login_stats(user.user_id, 0, 'ACTIVE', None)
+            return user, "Login successful."
+        
+        else:
+            # Thất bại: Tăng số lần sai
+            new_attempts = user.failed_login_attempts + 1
+            max_attempts = 5
+            
+            if new_attempts >= max_attempts:
+                # Quá 5 lần -> Khóa tài khoản
+                self.user_repo.update_login_stats(user.user_id, new_attempts, 'LOCKED', datetime.now())
+                msg = "Account locked due to multiple failed attempts (30 mins)."
+            else:
+                # Chưa quá 5 lần -> Cập nhật số lần sai
+                self.user_repo.update_login_stats(user.user_id, new_attempts, user.status, user.lockout_time)
+                msg = "Invalid username or password."
+            
+            return None, msg
 
     def change_password(self, user_id, old_pass, new_pass):
-        """
-        FR-03: Change Password [cite: 40-46].
-        """
+        """Đổi mật khẩu"""
+        # Validate input
         if not Security.validate_password_strength(new_pass):
-            return False, "Password must be at least 8 characters, include uppercase, number, special char."
+            return False, "Password weak: min 8 chars, uppercase, number, special char."
 
-        conn = DatabaseConnection.get_connection()
-        try:
-            cursor = conn.cursor(dictionary=True)
-            # Get current password
-            cursor.execute("SELECT password FROM Users WHERE user_id = %s", (user_id,))
-            record = cursor.fetchone()
+        # Lấy user để check pass cũ
+        user = self.user_repo.get_by_id(user_id)
+        if not user or not Security.verify_password(old_pass, user.password):
+            return False, "Incorrect current password."
 
-            if not record or not Security.verify_password(record['password'], old_pass):
-                return False, "Incorrect current password."
-
-            # Hash new password and update
-            hashed_new_pass = Security.hash_password(new_pass)
-            cursor.execute("UPDATE Users SET password = %s WHERE user_id = %s", (hashed_new_pass, user_id))
-            conn.commit()
-            return True, "Password changed successfully."
-        finally:
-            conn.close()
+        # Update pass mới
+        hashed_new = Security.hash_password(new_pass)
+        self.user_repo.update_password(user_id, hashed_new)
+        return True, "Password changed successfully."
 
     def request_password_reset(self, email):
-        """
-        UC04 - Step 2-5: Verify email, generate OTP, and send it.
-        """
-        with DatabaseConnection.get_cursor() as cursor:
-            # Step 3: Verify user exists
-            cursor.execute("SELECT user_id FROM Users WHERE email = %s", (email,))
-            user = cursor.fetchone()
+        """Gửi OTP quên mật khẩu"""
+        user = self.user_repo.get_by_email(email)
+        if not user:
+            # Fake success để tránh lộ email (Security Best Practice)
+            return False, "User ID or Email not found."
 
-            if not user:
-                # AF1.2: User not found
-                return False, "User ID or Email not found. Please check your information."
+        # Tạo OTP
+        otp = Security.generate_otp()
+        hashed_otp = Security.hash_password(otp) # Hash OTP trước khi lưu xuống DB
+        expiry = datetime.now() + timedelta(minutes=15)
 
-            # Step 4: Generate OTP and expiry
-            otp = Security.generate_otp()
-            hashed_otp = Security.hash_password(otp)
-            expiry_time = datetime.now() + timedelta(minutes=15)
+        # Lưu xuống DB qua Repo
+        self.user_repo.save_reset_token(email, hashed_otp, expiry)
 
-            # Store hashed OTP and expiry in DB
-            cursor.execute(
-                "UPDATE Users SET reset_token = %s, reset_token_expiry = %s WHERE email = %s",
-                (hashed_otp, expiry_time, email)
-            )
-
-            # Step 5: Send email
-            email_sent = EmailService.send_recovery_email(email, otp)
-            if not email_sent:
-                return False, "Failed to send recovery email. Please try again later."
-
+        # Gửi email
+        if EmailService.send_recovery_email(email, otp):
             return True, "Recovery code sent successfully."
+        return False, "Failed to send email."
 
     def reset_password(self, email, otp, new_password):
-        """
-        UC04 - Step 6-7: Verify OTP and reset the password.
-        """
-        with DatabaseConnection.get_cursor() as cursor:
-            # Find user and check token validity
-            cursor.execute("SELECT reset_token, reset_token_expiry FROM Users WHERE email = %s", (email,))
-            record = cursor.fetchone()
+        """Reset mật khẩu bằng OTP"""
+        user = self.user_repo.get_by_email(email)
+        
+        # Validate các điều kiện
+        if not user or not user.reset_token:
+            return False, "Invalid request."
+        
+        if datetime.now() > user.reset_token_expiry:
+            return False, "Code expired."
+            
+        if not Security.verify_password(otp, user.reset_token): # Verify OTP đã hash
+            return False, "Invalid recovery code."
 
-            if not record or not record['reset_token']:
-                return False, "Invalid request. Please start over."
+        if not Security.validate_password_strength(new_password):
+            return False, "Password weak."
 
-            # AF2: Check if token is expired
-            if datetime.now() > record['reset_token_expiry']:
-                return False, "The recovery code has expired. Please request a new one."
-
-            # Verify OTP
-            if not Security.verify_password(record['reset_token'], otp):
-                return False, "Invalid recovery code."
-
-            # Step 6: Validate new password strength
-            if not Security.validate_password_strength(new_password):
-                return False, "Password must be at least 8 characters and contain uppercase, number, and special char."
-
-            # Step 7: Update password and clear token
-            hashed_password = Security.hash_password(new_password)
-            cursor.execute("UPDATE Users SET password = %s, reset_token = NULL, reset_token_expiry = NULL WHERE email = %s", (hashed_password, email))
-            return True, "Password has been reset successfully."
+        # Thực hiện đổi pass và xóa token
+        hashed_pw = Security.hash_password(new_password)
+        self.user_repo.update_password(user.user_id, hashed_pw)
+        self.user_repo.clear_reset_token(email)
+        
+        return True, "Password reset successfully."

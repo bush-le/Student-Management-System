@@ -1,17 +1,30 @@
 class CourseClass:
-    """
-    Represents a specific class section offered in a semester.
-    """
-    def __init__(self, class_id, course_id, lecturer_id, semester_id, room, schedule, max_capacity, enrolled_count=0):
+    def __init__(self, class_id, course_id, semester_id, room, schedule, max_capacity, lecturer_id=None, 
+                 course_name=None, lecturer_name=None, current_enrolled=0):
         self.class_id = class_id
         self.course_id = course_id
-        self.lecturer_id = lecturer_id
         self.semester_id = semester_id
-        self.room = room        
+        self.room = room
         self.schedule = schedule
         self.max_capacity = max_capacity
-        self.enrolled_count = enrolled_count
+        self.lecturer_id = lecturer_id
+        # Fields mở rộng để hiển thị
+        self.course_name = course_name
+        self.lecturer_name = lecturer_name
+        self.current_enrolled = current_enrolled
 
-    def is_full(self):
-        """Check if the class is full (FR-16)"""
-        return self.enrolled_count >= self.max_capacity
+    @classmethod
+    def from_db_row(cls, row):
+        if not row: return None
+        return cls(
+            class_id=row.get('class_id'),
+            course_id=row.get('course_id'),
+            semester_id=row.get('semester_id'),
+            room=row.get('room'),
+            schedule=row.get('schedule'),
+            max_capacity=row.get('max_capacity'),
+            lecturer_id=row.get('lecturer_id'),
+            course_name=row.get('course_name'),
+            lecturer_name=row.get('lecturer_name'),
+            current_enrolled=row.get('current_enrolled', 0)
+        )

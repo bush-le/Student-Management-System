@@ -15,9 +15,9 @@ Student Management System (Desktop App) built with Python and MySQL, supporting 
 - **Security**: Bcrypt, Secrets
 
 ## 📄 Documentation
-- **Project Structure**: [docs/Project Structure.md](docs/Project%20Structure.md)
-- **Requirement Specification & Design Document**: [docs/Requirement Specification & Design Document - Group01.pdf](docs/Requirement%20Specification%20%26%20Design%20Document%20-%20Group01.pdf)
-- **Requirements**: [requirements.txt](requirements.txt)
+- [Project Structure](docs/Project%20Structure.md)
+- [Requirement Specification & Design Document](docs/Requirement%20Specification%20%26%20Design%20Document%20-%20Group01.pdf)
+- [Requirements (requirements.txt)](requirements.txt)
 
 ## ⚙️ Installation & Run
 

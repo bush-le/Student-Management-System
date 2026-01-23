@@ -6,46 +6,51 @@ from utils.validators import Validators
 
 class AuthController:
     def __init__(self):
-        self.user_repo = UserRepository()
+        # Lazy load UserRepository
+        self._user_repo = None
+
+    @property
+    def user_repo(self):
+        if self._user_repo is None: self._user_repo = UserRepository()
+        return self._user_repo
 
     def login(self, email, password):
-        """
-        Xử lý đăng nhập với logic khóa tài khoản
-        """
-        # 1. Tìm user qua Repository
+        """Handles login with account lockout logic"""
+        """Handles login with account lockout logic""" # Handles login with account lockout logic
+        # 1. Find user via Repository
         user = self.user_repo.get_by_email(email)
         
         if not user:
             return None, "Invalid username or password."
 
-        # 2. Kiểm tra trạng thái khóa (LOCKED)
+        # 2. Check lock status (LOCKED)
         if user.status == 'LOCKED':
             if user.lockout_time:
                 lockout_duration = timedelta(minutes=30)
                 if datetime.now() > user.lockout_time + lockout_duration:
-                    # Hết hạn khóa -> Mở khóa
+                    # Lockout expired -> Unlock
                     self.user_repo.update_login_stats(user.user_id, 0, 'ACTIVE', None)
                     user.status = 'ACTIVE'
-                    user.failed_login_attempts = 0 # Reset biến cục bộ
-                else:
-                    # Vẫn còn khóa
+                    user.failed_login_attempts = 0 # Reset
+                else: # Still locked
+                    # Still locked
                     remaining = (user.lockout_time + lockout_duration) - datetime.now()
                     minutes_left = round(remaining.total_seconds() / 60)
                     return None, f"Account locked. Try again in {minutes_left} minutes."
             else:
                 return None, "Account is locked administratively."
 
-        # 3. Kiểm tra mật khẩu (ĐÃ SỬA THỨ TỰ THAM SỐ)
-        # Đúng chuẩn: verify_password(HASH_TRONG_DB, PASSWORD_NHẬP_VÀO)
+        # 3. Check password (PARAMETER ORDER CORRECTED)
+        # Correct standard: verify_password(HASH_IN_DB, ENTERED_PASSWORD)
         if Security.verify_password(user.password, password):
-            # Thành công
+            # Success
             if user.failed_login_attempts > 0:
                 self.user_repo.update_login_stats(user.user_id, 0, 'ACTIVE', None)
             return user, "Login successful."
         
         else:
-            # Thất bại
-            new_attempts = user.failed_login_attempts + 1
+            # Failed
+            new_attempts = user.failed_login_attempts + 1 # Failure
             if new_attempts >= 5:
                 self.user_repo.update_login_stats(user.user_id, new_attempts, 'LOCKED', datetime.now())
                 msg = "Account locked due to multiple failed attempts (30 mins)."
@@ -55,23 +60,23 @@ class AuthController:
             
             return None, msg
 
-    def change_password(self, user_id, old_pass, new_pass):
-        """Đổi mật khẩu"""
+    def change_password(self, user_id, old_pass, new_pass): # Changes password
+        """Changes password"""
         if not Security.validate_password_strength(new_pass):
             return False, "Password weak: min 8 chars, uppercase, number, special char."
 
         user = self.user_repo.get_by_id(user_id)
         
-        # ĐÃ SỬA THỨ TỰ THAM SỐ: verify_password(HASH, PLAIN)
+        # PARAMETER ORDER CORRECTED: verify_password(HASH, PLAIN)
         if not user or not Security.verify_password(user.password, old_pass):
             return False, "Incorrect current password."
 
         hashed_new = Security.hash_password(new_pass)
         self.user_repo.update_password(user_id, hashed_new)
         return True, "Password changed successfully."
-
-    def request_password_reset(self, email):
-        """Gửi OTP quên mật khẩu"""
+    
+    def request_password_reset(self, email): # Sends OTP for password reset
+        """Sends OTP for password reset"""
         if not Validators.is_valid_email(email):
             return False, "Invalid email format."
 
@@ -88,9 +93,9 @@ class AuthController:
         if EmailService.send_recovery_email(email, otp):
             return True, "Recovery code sent successfully."
         return False, "Failed to send email."
-
-    def reset_password(self, email, otp, new_password):
-        """Reset mật khẩu bằng OTP"""
+    
+    def reset_password(self, email, otp, new_password): # Resets password using OTP
+        """Resets password using OTP""" # Resets password using OTP
         user = self.user_repo.get_by_email(email)
         
         if not user or not user.reset_token:
@@ -99,7 +104,7 @@ class AuthController:
         if datetime.now() > user.reset_token_expiry:
             return False, "Code expired."
             
-        # ĐÃ SỬA THỨ TỰ THAM SỐ: verify_password(HASH_TOKEN, OTP_INPUT)
+        # PARAMETER ORDER CORRECTED: verify_password(HASH_TOKEN, OTP_INPUT)
         if not Security.verify_password(user.reset_token, otp): 
             return False, "Invalid recovery code."
 

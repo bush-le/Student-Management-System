@@ -1,31 +1,71 @@
 import customtkinter as ctk
 from tkinter import messagebox
 from controllers.student_controller import StudentController
+from utils.threading_helper import run_in_background
 
 class ProfileView(ctk.CTkFrame):
-    def __init__(self, parent, user):
+    def __init__(self, parent, user, controller):
         super().__init__(parent, fg_color="transparent")
         self.user = user
-        self.controller = StudentController(user.user_id)
+        self.controller = controller
         
         # State
         self.is_editing = False
         self.entries = {}
         
-        # Màu sắc chủ đạo
+        # Theme colors
         self.COLOR_PRIMARY = "#0F766E"  # Teal
-        self.COLOR_EDIT = "#F59E0B"     # Amber (Màu nút Save)
+        self.COLOR_EDIT = "#F59E0B"     # Amber (Save button color)
         self.COLOR_BG_READONLY = "#F9FAFB"
         self.COLOR_BG_EDIT = "#FFFFFF"
 
-        # --- LOAD DATA MỚI NHẤT TỪ DB ---
-        self.reload_user_data()
-
         # --- UI LAYOUT ---
-        # Card Container chính
+        # Main Card Container
         self.card = ctk.CTkFrame(self, fg_color="white", corner_radius=12)
         self.card.pack(fill="both", expand=True, padx=0, pady=0)
+        
+        # Show loading initially
+        self.loading_lbl = ctk.CTkLabel(self.card, text="Loading profile...", text_color="gray")
+        self.loading_lbl.pack(pady=40)
 
+        # --- LOAD LATEST DATA FROM DB ---
+        self.load_data_async()
+
+    def load_data_async(self):
+        run_in_background(
+            self._fetch_profile,
+            self._render_ui,
+            tk_root=self.winfo_toplevel()
+        )
+        
+    def _fetch_profile(self):
+        """Retrieves full student information from DB (including class, department, date of birth...)"""
+        try:
+            # If not available, it will use basic information from self.user
+            return self.controller.get_student_profile()
+        except Exception as e:
+            print(f"Error loading profile: {e}")
+            return None
+
+    def _render_ui(self, full_info):
+        if not self.winfo_exists(): return
+        if hasattr(self, 'loading_lbl'): self.loading_lbl.destroy()
+        
+        if full_info:
+            self.student_info = full_info
+        else:
+            # Fallback data if DB error
+            self.student_info = {
+                'full_name': self.user.full_name,
+                'email': self.user.email,
+                'phone': getattr(self.user, 'phone', ''),
+                'student_code': getattr(self.user, 'student_code', '---'),
+                'dept_name': 'N/A', 
+                'class_name': 'N/A',         
+                'dob': 'N/A',           
+                'address': 'N/A'  
+            }
+            
         # 1. Header Section
         self.create_header()
 
@@ -35,35 +75,11 @@ class ProfileView(ctk.CTkFrame):
         # 2. Form Grid
         self.create_form_grid()
 
-    def reload_user_data(self):
-        """Lấy thông tin sinh viên đầy đủ từ DB (bao gồm lớp, khoa, ngày sinh...)"""
-        try:
-            # Controller cần hàm get_student_profile trả về full info
-            # Nếu chưa có, nó sẽ dùng thông tin cơ bản từ self.user
-            full_info = self.controller.get_student_profile() 
-            if full_info:
-                self.student_info = full_info
-            else:
-                # Fallback data nếu DB lỗi
-                self.student_info = {
-                    'full_name': self.user.full_name,
-                    'email': self.user.email,
-                    'phone': getattr(self.user, 'phone', ''),
-                    'student_code': getattr(self.user, 'student_code', '---'),
-                    'dept_name': 'Computer Science', # Placeholder
-                    'class_name': 'SE_K24',         # Placeholder
-                    'dob': '2000-01-01',           # Placeholder
-                    'address': 'Ho Chi Minh City'  # Placeholder
-                }
-        except Exception as e:
-            print(f"Error loading profile: {e}")
-            self.student_info = {}
-
     def create_header(self):
         header = ctk.CTkFrame(self.card, fg_color="transparent")
         header.pack(fill="x", padx=40, pady=40)
 
-        # Avatar Circle (Lấy chữ cái đầu tên)
+        # Avatar Circle (First letter of name)
         initial = self.user.full_name[0].upper() if self.user.full_name else "U"
         avatar = ctk.CTkFrame(header, width=80, height=80, corner_radius=40, fg_color="#CCFBF1")
         avatar.pack(side="left")
@@ -82,9 +98,9 @@ class ProfileView(ctk.CTkFrame):
         self.create_badge(badges, "STUDENT", "#F3F4F6", "#4B5563")
         self.create_badge(badges, self.student_info.get('student_code', '---'), "#DBEAFE", "#1E40AF")
 
-        # Edit Button (Nổi bật bên phải)
+        # Edit Button (Prominent on the right)
         self.edit_btn = ctk.CTkButton(
-            header, text="Edit Profile", 
+            header, text="Edit Profile", # Button to toggle edit mode
             fg_color="white", text_color="#374151", 
             hover_color="#F3F4F6", border_width=1, border_color="#D1D5DB",
             width=130, height=40, font=("Arial", 13, "bold"),
@@ -107,7 +123,7 @@ class ProfileView(ctk.CTkFrame):
         
         self.create_field(col1, "DEPARTMENT", self.student_info.get('dept_name', 'N/A'))
         self.create_field(col1, "CLASS", self.student_info.get('class_name', 'N/A'))
-        self.create_field(col1, "ENROLLMENT STATUS", "Active", text_color="#059669") # Xanh lá
+        self.create_field(col1, "ENROLLMENT STATUS", "Active", text_color="#059669")
 
         # --- RIGHT COLUMN (Personal - Editable) ---
         col2 = ctk.CTkFrame(grid, fg_color="transparent")
@@ -115,7 +131,7 @@ class ProfileView(ctk.CTkFrame):
         
         ctk.CTkLabel(col2, text="Personal Information", font=("Arial", 16, "bold"), text_color="#111827").pack(anchor="w", pady=(0, 20))
 
-        # Các trường sửa được -> Gán key
+        # Editable fields -> Assign key
         self.create_field(col2, "DATE OF BIRTH", self.student_info.get('dob', ''), key="dob", editable=True)
         self.create_field(col2, "EMAIL ADDRESS", self.student_info.get('email', ''), key="email", editable=True)
         self.create_field(col2, "PHONE NUMBER", self.student_info.get('phone', ''), key="phone", editable=True)
@@ -133,10 +149,10 @@ class ProfileView(ctk.CTkFrame):
             text_color=text_color, font=("Arial", 13)
         )
         entry.insert(0, str(value) if value else "")
-        entry.configure(state="disabled") # Mặc định khóa
+        entry.configure(state="disabled")
         entry.pack(fill="x", pady=(0, 15))
 
-        # Lưu tham chiếu nếu là trường sửa được
+        # Store reference if editable field
         if editable and key:
             self.entries[key] = entry
 
@@ -152,8 +168,7 @@ class ProfileView(ctk.CTkFrame):
     # --- LOGIC ---
     def toggle_edit_mode(self):
         if not self.is_editing:
-            # START EDITING
-            self.is_editing = True
+            self.is_editing = True # START EDITING
             self.edit_btn.configure(
                 text="Save Changes", 
                 fg_color=self.COLOR_PRIMARY, text_color="white",
@@ -178,33 +193,35 @@ class ProfileView(ctk.CTkFrame):
             return
 
         # 3. Call Controller
-        # Hàm update_profile cần được thêm vào StudentController
-        # update_profile(user_id, email, phone, address, dob)
-        success, msg = self.controller.update_student_profile(
-            self.user.user_id, 
-            updates.get('email'),
-            updates.get('phone'),
-            updates.get('address'),
-            updates.get('dob')
-        )
-
-        if success:
-            messagebox.showinfo("Success", "Profile updated successfully!")
-            
-            # Reset UI state
-            self.is_editing = False
-            self.edit_btn.configure(
-                text="Edit Profile", 
-                fg_color="white", text_color="#374151",
-                hover_color="#F3F4F6", border_width=1, border_color="#D1D5DB"
+        def _save_task():
+            return self.controller.update_student_profile(
+                self.user.user_id, 
+                updates.get('email'),
+                updates.get('phone'),
+                updates.get('address'),
+                updates.get('dob')
             )
-            
-            # Lock fields
-            for ent in self.entries.values():
-                ent.configure(state="disabled", fg_color=self.COLOR_BG_READONLY, border_color="#E5E7EB")
-            
-            # (Optional) Update self.user object in session
-            self.user.email = updates.get('email')
-            self.user.phone = updates.get('phone')
-        else:
-            messagebox.showerror("Update Failed", msg)
+
+        def _on_complete(result):
+            success, msg = result
+            if success:
+                messagebox.showinfo("Success", "Profile updated successfully!")
+                
+                # Reset UI state
+                self.is_editing = False
+                self.edit_btn.configure(
+                    text="Edit Profile", 
+                    fg_color="white", text_color="#374151",
+                    hover_color="#F3F4F6", border_width=1, border_color="#D1D5DB"
+                )
+                
+                # Lock fields
+                for ent in self.entries.values():
+                    ent.configure(state="disabled", fg_color=self.COLOR_BG_READONLY, border_color="#E5E7EB")
+                # (Optional) Update self.user object in session
+                self.user.email = updates.get('email')
+                self.user.phone = updates.get('phone')
+            else:
+                messagebox.showerror("Update Failed", msg)
+
+        run_in_background(_save_task, _on_complete, tk_root=self.winfo_toplevel())

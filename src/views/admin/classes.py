@@ -2,20 +2,17 @@ import customtkinter as ctk
 from tkinter import messagebox
 from controllers.admin_controller import AdminController
 from utils.threading_helper import run_in_background
-from utils.pagination import PaginationHelper
 
 class ClassesFrame(ctk.CTkFrame):
-    def __init__(self, parent, user_id):
+    def __init__(self, parent, controller):
         super().__init__(parent, fg_color="transparent")
-        self.controller = AdminController(user_id)
-        
-        # Cấu hình phân trang
+        self.controller = controller
+        # Pagination configuration
         self.current_page = 1
         self.per_page = 5
-        self.total_pages = 1
+        self.total_pages = 1 # Initialize total pages
         self.total_items = 0
-        
-        # --- CẤU HÌNH ĐỘ RỘNG CỐ ĐỊNH (PIXEL) ---
+        # --- FIXED WIDTH CONFIGURATION (PIXEL) ---
         self.col_widths = [200, 180, 180, 80, 100, 200]
 
         # 1. Header
@@ -50,7 +47,7 @@ class ClassesFrame(ctk.CTkFrame):
             width=140, height=40, font=("Arial", 13, "bold"),
             command=self.open_add_dialog
         ).pack(side="right")
-
+        
     def create_table_header(self):
         h_frame = ctk.CTkFrame(self, fg_color="#E5E7EB", height=45, corner_radius=5)
         h_frame.pack(fill="x", padx=20, pady=(0, 5))
@@ -75,20 +72,20 @@ class ClassesFrame(ctk.CTkFrame):
         btn_box.pack(side="right", padx=20)
 
         self.prev_btn = ctk.CTkButton(
-            btn_box, text="← Previous", width=90, height=32,
+            btn_box, text="< Previous", width=90, height=32,
             fg_color="white", text_color="#333", border_color="#D1D5DB", border_width=1,
             hover_color="#F3F4F6", state="disabled", command=self.prev_page
         )
         self.prev_btn.pack(side="left", padx=5)
         
         self.next_btn = ctk.CTkButton(
-            btn_box, text="Next →", width=90, height=32,
+            btn_box, text="Next >", width=90, height=32,
             fg_color="#0F766E", text_color="white", hover_color="#115E59",
             state="disabled", command=self.next_page
         )
         self.next_btn.pack(side="left", padx=5)
 
-    def load_data(self):
+    def load_data(self): # Load class data
         for w in self.table_frame.winfo_children(): w.destroy()
         ctk.CTkLabel(self.table_frame, text="Loading data...", text_color="gray").pack(pady=20)
         
@@ -100,13 +97,28 @@ class ClassesFrame(ctk.CTkFrame):
 
     def _fetch_classes(self):
         try:
-            all_classes = self.controller.get_all_classes_details()
-            return PaginationHelper.paginate(all_classes, self.current_page, self.per_page)
+            # 1. Get current page data (Server-side pagination)
+            classes = self.controller.get_all_classes_details(page=self.current_page, per_page=self.per_page)
+            
+            # 2. Get total count
+            total_items = self.controller.get_total_classes()
+            total_pages = (total_items + self.per_page - 1) // self.per_page
+            
+            return {
+                'data': classes,
+                'page': self.current_page,
+                'per_page': self.per_page,
+                'total_items': total_items,
+                'total_pages': total_pages,
+                'has_next': self.current_page < total_pages,
+                'has_prev': self.current_page > 1
+            }
         except Exception as e:
             print(f"Error loading classes: {e}")
             return None
 
     def _render_classes(self, result):
+        if not self.winfo_exists(): return
         for w in self.table_frame.winfo_children(): w.destroy()
 
         if not result or not result['data']:
@@ -115,7 +127,7 @@ class ClassesFrame(ctk.CTkFrame):
             self.prev_btn.configure(state="disabled"); self.next_btn.configure(state="disabled")
             return
 
-        self.total_pages = result['total_pages']
+        self.total_pages = result['total_pages'] # Update total pages
         self.total_items = result['total_items']
         self.page_label.configure(text=f"Page {self.current_page} of {self.total_pages} ({self.total_items} items)")
         
@@ -128,22 +140,22 @@ class ClassesFrame(ctk.CTkFrame):
             fg_color="#0F766E" if result['has_next'] else "#9CA3AF"
         )
 
-        for idx, item in enumerate(result['data']):
-            self.create_row(item, idx)
+        for idx, item in enumerate(result['data']): # Render each class item
+            self.create_row(item, idx) 
 
     def create_row(self, data, idx):
         # Zebra Striping
-        bg_color = "white" if idx % 2 == 0 else "#F9FAFB"
+        bg_color = "white" if idx % 2 == 0 else "#F9FAFB" # Apply alternating row colors 
         
         row = ctk.CTkFrame(self.table_frame, fg_color=bg_color, corner_radius=0, height=45)
         row.pack(fill="x")
         
-        # 1. Course Name
+        # 1. Course Name 
         ctk.CTkLabel(row, text=data.course_name, font=("Arial", 12, "bold"), text_color="#333", anchor="w", width=self.col_widths[0]).grid(row=0, column=0, sticky="ew", padx=10, pady=12)
         
         # 2. Lecturer (Text Only - No Icon)
         lec_name = data.lecturer_name if data.lecturer_name else "Unassigned"
-        lec_color = "#333" if data.lecturer_name else "#EF4444" # Đỏ nếu chưa có GV
+        lec_color = "#333" if data.lecturer_name else "#EF4444" # Red if no lecturer assigned
         ctk.CTkLabel(row, text=lec_name, font=("Arial", 12), text_color=lec_color, anchor="w", width=self.col_widths[1]).grid(row=0, column=1, sticky="ew", padx=10)
 
         # 3. Schedule
@@ -161,13 +173,12 @@ class ClassesFrame(ctk.CTkFrame):
         actions = ctk.CTkFrame(row, fg_color="transparent", width=self.col_widths[5])
         actions.grid(row=0, column=5, sticky="ew", padx=5)
         actions.grid_propagate(False)
-        
-        # Assign Btn
+        # Assign Btn 
         self._action_btn(actions, "Assign", "#4F46E5", lambda: self.open_assign_dialog(data))
         # Edit Btn
         self._action_btn(actions, "Edit", "#3B82F6", lambda: self.open_edit_dialog(data))
         # Delete Btn
-        self._action_btn(actions, "Del", "#EF4444", lambda: self.delete_item(data.class_id))
+        self._action_btn(actions, "Del", "#EF4444", lambda: self.delete_item(data.class_id)) # Delete button
 
         ctk.CTkFrame(self.table_frame, height=1, fg_color="#F3F4F6").pack(fill="x")
 
@@ -190,9 +201,11 @@ class ClassesFrame(ctk.CTkFrame):
 
     def delete_item(self, cid):
         if messagebox.askyesno("Confirm", "Delete this class?"):
-            success, msg = self.controller.delete_class(cid)
-            if success: self.load_data()
-            else: messagebox.showerror("Error", msg)
+            run_in_background(
+                lambda: self.controller.delete_class(cid),
+                lambda res: self.load_data() if res[0] else messagebox.showerror("Error", res[1]),
+                tk_root=self.winfo_toplevel()
+            )
 
     def open_add_dialog(self):
         ClassDialog(self, "Schedule New Class", self.controller, self.load_data)
@@ -202,7 +215,6 @@ class ClassesFrame(ctk.CTkFrame):
 
     def open_assign_dialog(self, data):
         AssignLecturerDialog(self, data, self.controller, self.load_data)
-
 
 # ==========================================
 # POPUP: SCHEDULE/EDIT CLASS
@@ -220,33 +232,47 @@ class ClassDialog(ctk.CTkToplevel):
         self.configure(fg_color="white")
         
         ctk.CTkLabel(self, text=title, font=("Arial", 20, "bold"), text_color="#111827").pack(pady=25, anchor="w", padx=40)
-
+        # Form container 
         form = ctk.CTkFrame(self, fg_color="transparent")
         form.pack(fill="both", expand=True, padx=40)
 
         # 1. Course Dropdown
         ctk.CTkLabel(form, text="Select Course", font=("Arial", 12, "bold"), text_color="#374151").pack(anchor="w", pady=(5, 5))
         
-        courses = self.controller.get_all_courses()
-        # Convert Course objects to dict-like format for display
-        course_names = [f"{c.course_code} - {c.course_name}" if hasattr(c, 'course_code') else f"{c['course_code']} - {c['course_name']}" for c in courses]
+        # Fetch ALL courses for dropdown (disable pagination)
+        courses = self.controller.get_all_courses(page=None, per_page=None)
+        # Create a map for robust selection
+        self.course_map = {f"{c.course_code} - {c.course_name}": c.course_id for c in courses}
         
         self.combo_course = ctk.CTkComboBox(
-            form, values=course_names, width=520, height=40,
+            form, values=list(self.course_map.keys()), width=520, height=40,
             border_color="#E5E7EB", fg_color="white", text_color="black"
         )
         self.combo_course.pack()
 
-        # 2. Semester & Room
+        # 2. Semester & Room 
         r1 = ctk.CTkFrame(form, fg_color="transparent")
         r1.pack(fill="x", pady=10)
-        self.ent_sem = self._add_field(r1, "Semester (ID or Name)", "e.g. 1", side="left")
+        
+        # --- SEMESTER DROPDOWN (Connected to DB) ---
+        self.semesters = self.controller.get_all_semesters()
+        self.sem_map = {s.name: s.semester_id for s in self.semesters}
+        
+        f_sem = ctk.CTkFrame(r1, fg_color="transparent")
+        f_sem.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        ctk.CTkLabel(f_sem, text="Semester", font=("Arial", 12, "bold"), text_color="#374151").pack(anchor="w")
+        
+        self.combo_sem = ctk.CTkComboBox(
+            f_sem, values=list(self.sem_map.keys()), height=40, 
+            border_color="#E5E7EB", fg_color="white", text_color="black"
+        )
+        self.combo_sem.pack(fill="x", pady=5)
+
         self.ent_room = self._add_field(r1, "Room Number", "e.g. A101", side="right")
 
-        # 3. Day & Time
+        # 3. Day & Time 
         r2 = ctk.CTkFrame(form, fg_color="transparent")
         r2.pack(fill="x", pady=10)
-        
         # Day Dropdown
         f_day = ctk.CTkFrame(r2, fg_color="transparent")
         f_day.pack(side="left", fill="x", expand=True, padx=(0, 10))
@@ -257,10 +283,10 @@ class ClassDialog(ctk.CTkToplevel):
         )
         self.combo_day.pack(fill="x", pady=5)
 
-        # Time Entry
+        # Time Entry 
         self.ent_time = self._add_input_only(r2, "Time Slot", "08:00 - 09:30", side="right")
 
-        # 4. Capacity
+        # 4. Capacity 
         ctk.CTkLabel(form, text="Max Capacity", font=("Arial", 12, "bold"), text_color="#374151").pack(anchor="w", pady=(5, 5))
         self.ent_cap = ctk.CTkEntry(form, placeholder_text="e.g. 50", width=520, height=40, border_color="#E5E7EB")
         self.ent_cap.pack()
@@ -279,12 +305,18 @@ class ClassDialog(ctk.CTkToplevel):
             btn_frame, text="Save Class", fg_color="#0F766E", hover_color="#115E59", 
             width=140, height=40, font=("Arial", 13, "bold"),
             command=self.save
-        ).pack(side="right")
+        ).pack(side="right") # Save button 
 
         # Fill Data if Edit
         if data:
             self.combo_course.set(f"{data.course_code} - {data.course_name}")
             self.combo_course.configure(state="disabled")
+            
+            # Populate Semester
+            # Find name by ID
+            sem_name = next((name for name, sid in self.sem_map.items() if sid == data.semester_id), "")
+            self.combo_sem.set(sem_name)
+            self.combo_sem.configure(state="disabled")
             
             self.ent_room.insert(0, data.room)
             self.ent_cap.insert(0, str(data.max_capacity))
@@ -296,8 +328,7 @@ class ClassDialog(ctk.CTkToplevel):
                 self.ent_time.insert(0, sched_parts[1])
 
         self.lift()
-        self.focus_force()
-        self.after(100, self.grab_set)
+        self.after(100, lambda: [self.focus_force(), self.grab_set()])
 
     def _add_field(self, parent, label, placeholder, side):
         f = ctk.CTkFrame(parent, fg_color="transparent")
@@ -317,28 +348,40 @@ class ClassDialog(ctk.CTkToplevel):
 
     def save(self):
         course_str = self.combo_course.get()
-        course_code = course_str.split(' - ')[0]
+        course_id = self.course_map.get(course_str)
         
-        courses = self.controller.get_all_courses()
-        course_id = next((c['course_id'] for c in courses if c['course_code'] == course_code), None)
+        sem_name = self.combo_sem.get()
+        semester_id = self.sem_map.get(sem_name)
+
+        if not course_id or not semester_id:
+            messagebox.showerror("Error", "Please select valid Course and Semester", parent=self)
+            return
 
         schedule = f"{self.combo_day.get()} {self.ent_time.get()}" if self.combo_day.get() and self.ent_time.get() else ""
         
-        if self.data: # Update
-            success, msg = self.controller.update_class(
-                self.data.class_id, self.ent_room.get(), schedule, self.ent_cap.get()
-            )
-        else: # Create
-            # Note: Semester ID đang lấy text từ entry, cần đảm bảo controller xử lý đúng
-            success, msg = self.controller.create_class(
-                course_id, self.ent_sem.get(), self.ent_room.get(), schedule, self.ent_cap.get()
-            )
+        # Gather data from widgets in the main thread (Thread Safety)
+        room = self.ent_room.get()
+        cap = self.ent_cap.get()
 
-        if success:
-            self.callback()
-            self.destroy()
-        else:
-            messagebox.showerror("Error", msg, parent=self)
+        def _save_task():
+            if self.data: # Update
+                return self.controller.update_class(
+                    self.data.class_id, room, schedule, cap
+                )
+            else: # Create
+                return self.controller.create_class(
+                    course_id, semester_id, room, schedule, cap
+                )
+
+        def _on_complete(result):
+            success, msg = result
+            if success:
+                self.callback()
+                self.destroy()
+            else:
+                messagebox.showerror("Error", msg, parent=self)
+
+        run_in_background(_save_task, _on_complete, tk_root=self.winfo_toplevel())
 
 
 # ==========================================
@@ -358,7 +401,6 @@ class AssignLecturerDialog(ctk.CTkToplevel):
         self.configure(fg_color="white")
 
         ctk.CTkLabel(self, text="Assign Lecturer", font=("Arial", 20, "bold"), text_color="#111827").pack(pady=25, anchor="w", padx=30)
-
         # 1. Class Context Box (Blue Background)
         ctx_frame = ctk.CTkFrame(self, fg_color="#F0F9FF", corner_radius=8, border_color="#BAE6FD", border_width=1)
         ctx_frame.pack(fill="x", padx=30, pady=(0, 20))
@@ -367,12 +409,12 @@ class AssignLecturerDialog(ctk.CTkToplevel):
         
         self._ctx_row(ctx_frame, "Course", class_data.course_name, "Time Slot", class_data.schedule)
         self._ctx_row(ctx_frame, "Room", class_data.room, "Capacity", f"{class_data.max_capacity} Students")
-        ctk.CTkFrame(ctx_frame, height=15, fg_color="transparent").pack()
-
+        ctk.CTkFrame(ctx_frame, height=15, fg_color="transparent").pack() # Spacer
         # 2. Select Lecturer
         ctk.CTkLabel(self, text="Select Lecturer", font=("Arial", 12, "bold"), text_color="#374151").pack(anchor="w", padx=30)
         
-        lecturers = self.controller.get_all_lecturers()
+        # Fetch ALL lecturers for dropdown (disable pagination)
+        lecturers = self.controller.get_all_lecturers(page=None, per_page=None)
         self.lec_map = {f"{l.full_name} ({l.lecturer_code})": l.lecturer_id for l in lecturers}
         
         self.combo_lec = ctk.CTkComboBox(
@@ -382,7 +424,6 @@ class AssignLecturerDialog(ctk.CTkToplevel):
         self.combo_lec.pack(padx=30, pady=10)
         
         ctk.CTkLabel(self, text="* Selecting a lecturer will check for schedule conflicts.", font=("Arial", 11), text_color="#6B7280").pack(anchor="w", padx=30)
-
         # 3. Buttons
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(fill="x", padx=30, pady=40)
@@ -396,12 +437,11 @@ class AssignLecturerDialog(ctk.CTkToplevel):
         ctk.CTkButton(
             btn_frame, text="Confirm Assignment", fg_color="#0F766E", hover_color="#115E59", 
             width=160, height=40, font=("Arial", 13, "bold"),
-            command=self.confirm
+            command=self.confirm # Confirm assignment button 
         ).pack(side="right")
 
         self.lift()
-        self.focus_force()
-        self.after(100, self.grab_set)
+        self.after(100, lambda: [self.focus_force(), self.grab_set()])
 
     def _ctx_row(self, parent, l1, v1, l2, v2):
         row = ctk.CTkFrame(parent, fg_color="transparent")
@@ -426,10 +466,16 @@ class AssignLecturerDialog(ctk.CTkToplevel):
             return
             
         lecturer_id = self.lec_map[selection]
-        success, msg = self.controller.assign_lecturer_to_class(self.class_data.class_id, lecturer_id)
         
-        if success:
-            self.callback()
-            self.destroy()
-        else:
-            messagebox.showerror("Error", msg, parent=self)
+        def _assign_task():
+            return self.controller.assign_lecturer_to_class(self.class_data.class_id, lecturer_id)
+            
+        def _on_complete(result):
+            success, msg = result
+            if success:
+                self.callback()
+                self.destroy()
+            else:
+                messagebox.showerror("Error", msg, parent=self)
+
+        run_in_background(_assign_task, _on_complete, tk_root=self.winfo_toplevel())

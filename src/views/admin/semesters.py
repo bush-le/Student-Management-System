@@ -1,11 +1,12 @@
 import customtkinter as ctk
 from tkinter import messagebox
 from controllers.admin_controller import AdminController
+from utils.threading_helper import run_in_background
 
 class SemestersFrame(ctk.CTkFrame):
-    def __init__(self, parent, user_id):
+    def __init__(self, parent, controller):
         super().__init__(parent, fg_color="transparent")
-        self.controller = AdminController(user_id)
+        self.controller = controller
         
         # 1. Toolbar
         self.create_toolbar()
@@ -18,12 +19,11 @@ class SemestersFrame(ctk.CTkFrame):
         self.scroll_area.pack(fill="both", expand=True, pady=(0, 20))
 
         # 4. Load Data
-        self.load_data()
+        self.load_data_async()
 
     def create_toolbar(self):
         toolbar = ctk.CTkFrame(self, fg_color="transparent", height=50)
         toolbar.pack(fill="x", pady=(0, 15))
-        
         # Search Entry
         self.search_ent = ctk.CTkEntry(
             toolbar, placeholder_text="Search semester...", 
@@ -52,14 +52,24 @@ class SemestersFrame(ctk.CTkFrame):
                 h_frame, text=text, font=("Arial", 11, "bold"), text_color="#374151", anchor="w"
             ).grid(row=0, column=i, sticky="ew", padx=10, pady=8)
 
-    def load_data(self):
+    def load_data_async(self):
+        for widget in self.scroll_area.winfo_children(): widget.destroy()
+        ctk.CTkLabel(self.scroll_area, text="Loading...", text_color="gray").pack(pady=20)
+        
+        run_in_background(
+            self.controller.get_all_semesters,
+            self._render_data,
+            tk_root=self.winfo_toplevel()
+        )
+
+    def _render_data(self, semesters):
+        if not self.winfo_exists(): return
         for widget in self.scroll_area.winfo_children(): widget.destroy()
         try:
-            semesters = self.controller.get_all_semesters()
             for idx, sem in enumerate(semesters):
                 self.create_row(sem, idx)
         except Exception as e:
-            print(f"Error loading semesters: {e}")
+            ctk.CTkLabel(self.scroll_area, text=f"Error: {e}", text_color="red").pack(pady=20)
 
     def create_row(self, data, idx):
         # Zebra striping
@@ -76,7 +86,6 @@ class SemestersFrame(ctk.CTkFrame):
         ctk.CTkLabel(row, text=data.name, font=("Arial", 12, "bold"), text_color="#333", anchor="w").grid(row=0, column=0, sticky="ew", padx=10, pady=12)
         ctk.CTkLabel(row, text=str(data.start_date), font=("Arial", 12), text_color="#555", anchor="w").grid(row=0, column=1, sticky="ew", padx=10)
         ctk.CTkLabel(row, text=str(data.end_date), font=("Arial", 12), text_color="#555", anchor="w").grid(row=0, column=2, sticky="ew", padx=10)
-
         # Status
         status = data.status.upper()
         status_col = "#059669" if status == "OPEN" else "#9CA3AF"
@@ -98,18 +107,17 @@ class SemestersFrame(ctk.CTkFrame):
 
     def delete_item(self, sem_id):
         if messagebox.askyesno("Confirm", "Are you sure you want to delete this semester?"):
-            success, msg = self.controller.delete_semester(sem_id)
-            if success:
-                self.load_data()
-                messagebox.showinfo("Success", msg)
-            else:
-                messagebox.showerror("Error", msg)
+            run_in_background(
+                lambda: self.controller.delete_semester(sem_id),
+                lambda res: [self.load_data_async(), messagebox.showinfo("Success", res[1])] if res[0] else messagebox.showerror("Error", res[1]),
+                tk_root=self.winfo_toplevel()
+            )
 
     def open_add_dialog(self):
-        SemesterDialog(self, "Add Semester", controller=self.controller, callback=self.load_data)
+        SemesterDialog(self, "Add Semester", controller=self.controller, callback=self.load_data_async)
 
     def open_edit_dialog(self, data):
-        SemesterDialog(self, "Edit Semester", controller=self.controller, callback=self.load_data, data=data)
+        SemesterDialog(self, "Edit Semester", controller=self.controller, callback=self.load_data_async, data=data)
 
 
 # ==========================================
@@ -174,8 +182,7 @@ class SemesterDialog(ctk.CTkToplevel):
             self.combo_status.set(data.status)
 
         self.lift()
-        self.focus_force()
-        self.after(100, self.grab_set) 
+        self.after(100, lambda: [self.focus_force(), self.grab_set()])
 
     def create_input(self, label, placeholder):
         ctk.CTkLabel(self, text=label, font=("Arial", 12, "bold"), text_color="#374151").pack(anchor="w", padx=40, pady=(10, 5))
@@ -193,13 +200,18 @@ class SemesterDialog(ctk.CTkToplevel):
             messagebox.showwarning("Warning", "Please fill all fields", parent=self)
             return
 
-        if self.data: # Update
-            success, msg = self.controller.update_semester(self.data.semester_id, name, start, end, status)
-        else: # Create
-            success, msg = self.controller.create_semester(name, start, end)
+        def _save_task():
+            if self.data: # Update
+                return self.controller.update_semester(self.data.semester_id, name, start, end, status)
+            else: # Create
+                return self.controller.create_semester(name, start, end)
         
-        if success:
-            self.callback()
-            self.destroy()
-        else:
-            messagebox.showerror("Error", msg, parent=self)
+        def _on_complete(result):
+            success, msg = result
+            if success:
+                self.callback()
+                self.destroy()
+            else:
+                messagebox.showerror("Error", msg, parent=self)
+
+        run_in_background(_save_task, _on_complete, tk_root=self.winfo_toplevel())

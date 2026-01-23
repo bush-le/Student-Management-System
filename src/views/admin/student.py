@@ -2,31 +2,29 @@ import customtkinter as ctk
 from tkinter import messagebox, filedialog
 from controllers.admin_controller import AdminController
 from utils.threading_helper import run_in_background
-from utils.pagination import PaginationHelper  # Import Helper
 
 class StudentsFrame(ctk.CTkFrame):
-    def __init__(self, parent, user_id):
+    def __init__(self, parent, controller):
         super().__init__(parent, fg_color="transparent")
-        self.controller = AdminController(user_id)
+        self.controller = controller
         
-        # Cấu hình phân trang
+        # Pagination configuration
         self.current_page = 1
         self.per_page = 5  
         self.total_pages = 1
         self.total_items = 0
         
-        # --- CẤU HÌNH ĐỘ RỘNG CỐ ĐỊNH (PIXEL) ---
+        # --- FIXED WIDTH CONFIGURATION (PIXEL) ---
         self.col_widths = [80, 220, 180, 220, 100, 150]
 
         # UI Setup
         self.create_toolbar()
         self.create_table_header()
 
-        # THAY ĐỔI QUAN TRỌNG: Dùng CTkFrame thường thay vì ScrollableFrame
+        # IMPORTANT CHANGE: Use regular CTkFrame instead of ScrollableFrame
         self.table_frame = ctk.CTkFrame(self, fg_color="white", corner_radius=10)
         self.table_frame.pack(fill="both", expand=True, pady=(0, 10))
 
-        # Pagination Controls (Thanh điều hướng)
         self.create_pagination_controls()
 
         # Load Data
@@ -71,7 +69,7 @@ class StudentsFrame(ctk.CTkFrame):
         self.pagination_frame = ctk.CTkFrame(self, fg_color="transparent", height=50)
         self.pagination_frame.pack(fill="x", pady=(0, 10))
         
-        # Info Label (VD: Page 1 of 5)
+        # Info Label (e.g., Page 1 of 5)
         self.page_label = ctk.CTkLabel(self.pagination_frame, text="Page 1 of 1", font=("Arial", 12), text_color="gray")
         self.page_label.pack(side="left", padx=20)
         
@@ -80,7 +78,7 @@ class StudentsFrame(ctk.CTkFrame):
         btn_box.pack(side="right", padx=20)
 
         self.prev_btn = ctk.CTkButton(
-            btn_box, text="← Previous", width=90, height=32,
+            btn_box, text="< Previous", width=90, height=32,
             fg_color="white", text_color="#333", border_color="#D1D5DB", border_width=1,
             hover_color="#F3F4F6",
             state="disabled",
@@ -89,7 +87,7 @@ class StudentsFrame(ctk.CTkFrame):
         self.prev_btn.pack(side="left", padx=5)
         
         self.next_btn = ctk.CTkButton(
-            btn_box, text="Next →", width=90, height=32,
+            btn_box, text="Next >", width=90, height=32,
             fg_color="#0F766E", text_color="white", hover_color="#115E59",
             state="disabled",
             command=self.next_page
@@ -97,13 +95,12 @@ class StudentsFrame(ctk.CTkFrame):
         self.next_btn.pack(side="left", padx=5)
 
     def load_data(self):
-        """Xóa dữ liệu cũ và hiện loading"""
+        """Clears old data and displays loading indicator"""
         for widget in self.table_frame.winfo_children(): widget.destroy()
         
         loading = ctk.CTkLabel(self.table_frame, text="Loading data...", text_color="gray")
         loading.pack(pady=20)
-        
-        # Chạy thread ngầm để lấy dữ liệu
+        # Run background thread to fetch data
         run_in_background(
             self._fetch_students,
             on_complete=self._render_students,
@@ -111,25 +108,33 @@ class StudentsFrame(ctk.CTkFrame):
         )
     
     def _fetch_students(self):
-        """Lấy TẤT CẢ dữ liệu rồi phân trang bằng PaginationHelper"""
+        """Fetches paginated data using a single efficient call.""" 
         try:
-            # Lấy toàn bộ danh sách sinh viên
-            all_students = self.controller.get_all_students()
-            
-            # Sử dụng PaginationHelper để cắt danh sách
-            paginated_result = PaginationHelper.paginate(
-                all_students, 
+            # OPTIMIZED: Get both data and total count in one call
+            students, total_items = self.controller.get_all_students(
                 page=self.current_page, 
                 per_page=self.per_page
             )
-            return paginated_result
+            
+            total_pages = (total_items + self.per_page - 1) // self.per_page
+            
+            return {
+                'data': students,
+                'page': self.current_page,
+                'per_page': self.per_page,
+                'total_items': total_items,
+                'total_pages': total_pages,
+                'has_next': self.current_page < total_pages,
+                'has_prev': self.current_page > 1
+            }
         except Exception as e:
             print(f"Error fetching: {e}")
             return None
     
     def _render_students(self, result):
-        """Hiển thị dữ liệu lên bảng"""
-        # Xóa loading
+        """Displays data in the table"""
+        if not self.winfo_exists(): return
+        # Remove loading indicator
         for widget in self.table_frame.winfo_children(): widget.destroy()
         
         if not result or not result['data']:
@@ -138,18 +143,17 @@ class StudentsFrame(ctk.CTkFrame):
             self.prev_btn.configure(state="disabled")
             self.next_btn.configure(state="disabled")
             return
-            
-        # Cập nhật thông tin trang
+        
+        # Update page information
         self.total_pages = result['total_pages']
         self.total_items = result['total_items']
         
         self.page_label.configure(text=f"Page {self.current_page} of {self.total_pages}  ({self.total_items} students)")
         
-        # Cập nhật trạng thái nút
         self.prev_btn.configure(state="normal" if result['has_prev'] else "disabled", fg_color="white" if result['has_prev'] else "#F3F4F6")
         self.next_btn.configure(state="normal" if result['has_next'] else "disabled", fg_color="#0F766E" if result['has_next'] else "#9CA3AF")
-
-        # Vẽ các dòng dữ liệu
+        
+        # Render data rows
         for idx, s in enumerate(result['data']):
             self.create_row(s, idx)
 
@@ -165,11 +169,11 @@ class StudentsFrame(ctk.CTkFrame):
 
     def create_row(self, data, idx):
         # Zebra striping
-        bg_color = "white" if idx % 2 == 0 else "#F9FAFB"
+        bg_color = "white" if idx % 2 == 0 else "#F9FAFB" # Apply alternating row colors
         
         # Row Frame
         row = ctk.CTkFrame(self.table_frame, fg_color=bg_color, corner_radius=0, height=45)
-        row.pack(fill="x") # Không dùng pady để các dòng sát nhau đẹp hơn
+        row.pack(fill="x")
         
         # Data Cells
         ctk.CTkLabel(row, text=data.student_code, font=("Arial", 12, "bold"), text_color="#333", anchor="w", width=self.col_widths[0]).grid(row=0, column=0, sticky="ew", padx=10, pady=12)
@@ -193,7 +197,7 @@ class StudentsFrame(ctk.CTkFrame):
         self._action_btn(action_frame, "Edit", "#3B82F6", lambda: self.open_edit_dialog(data))
         self._action_btn(action_frame, "Del", "#EF4444", lambda: self.delete_item(data.student_id))
 
-        # Đường kẻ mờ ngăn cách các dòng (tùy chọn)
+        # Faint separator line between rows (optional)
         ctk.CTkFrame(self.table_frame, height=1, fg_color="#F3F4F6").pack(fill="x")
 
     def _action_btn(self, parent, text, color, cmd):
@@ -203,25 +207,32 @@ class StudentsFrame(ctk.CTkFrame):
             font=("Arial", 11, "bold"), command=cmd
         ).pack(side="left", padx=2)
 
-    # --- CÁC HÀM LOGIC GIỮ NGUYÊN ---
+    # --- UNCHANGED LOGIC FUNCTIONS ---
     def import_csv(self):
         file_path = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv")])
         if file_path:
-            success, msg = self.controller.import_students_csv(file_path)
-            if success:
-                messagebox.showinfo("Success", msg)
-                self.current_page = 1
-                self.load_data()
-            else:
-                messagebox.showerror("Error", msg)
+            # Run heavy CSV import in background
+            def _do_import():
+                return self.controller.import_students_csv(file_path)
+
+            def _on_complete(result): # Callback after import is complete
+                success, msg = result
+                if success:
+                    messagebox.showinfo("Success", msg)
+                    self.current_page = 1
+                    self.load_data()
+                else:
+                    messagebox.showerror("Error", msg)
+            
+            run_in_background(_do_import, _on_complete, tk_root=self.winfo_toplevel())
 
     def delete_item(self, sid):
         if messagebox.askyesno("Confirm", "Delete this student?"):
-            success, msg = self.controller.delete_student(sid)
-            if success: 
-                self.load_data()
-            else: 
-                messagebox.showerror("Error", msg)
+            run_in_background(
+                lambda: self.controller.delete_student(sid),
+                lambda res: self.load_data() if res[0] else messagebox.showerror("Error", res[1]),
+                tk_root=self.winfo_toplevel()
+            )
 
     def open_add_dialog(self):
         StudentDialog(self, "Add New Student", self.controller, self.load_data)
@@ -264,18 +275,21 @@ class StudentDialog(ctk.CTkToplevel):
         self.ent_name = self._add_field(form, 0, 0, "Full Name", "e.g. Nguyen Van A")
         self.ent_id = self._add_field(form, 0, 1, "Student ID", "e.g. S001")
         self.ent_email = self._add_field(form, 1, 0, "Email Address", "student@university.edu")
-        self.ent_dob = self._add_field(form, 1, 1, "Date of Birth", "YYYY-MM-DD") # Placeholder
+        self.ent_phone = self._add_field(form, 1, 1, "Phone Number", "0901234567")
+        
+        self.ent_major = self._add_field(form, 2, 0, "Major", "Software Engineering")
+        self.ent_year = self._add_field(form, 2, 1, "Academic Year", "2024")
         
         # Dept Dropdown (Real Data)
-        ctk.CTkLabel(form, text="Department", font=("Arial", 12, "bold"), text_color="#555").grid(row=2, column=0, sticky="w", pady=(10, 5))
+        ctk.CTkLabel(form, text="Department", font=("Arial", 12, "bold"), text_color="#555").grid(row=3, column=0, sticky="w", pady=(10, 5))
         self.combo_dept = ctk.CTkComboBox(form, values=dept_names, width=300, height=35)
-        self.combo_dept.grid(row=3, column=0, sticky="w", padx=(0, 10))
+        self.combo_dept.grid(row=4, column=0, sticky="w", padx=(0, 10))
 
         # Status Dropdown
-        ctk.CTkLabel(form, text="Enrollment Status", font=("Arial", 12, "bold"), text_color="#555").grid(row=2, column=1, sticky="w", pady=(10, 5))
+        ctk.CTkLabel(form, text="Enrollment Status", font=("Arial", 12, "bold"), text_color="#555").grid(row=3, column=1, sticky="w", pady=(10, 5)) # Enrollment Status label
         self.combo_status = ctk.CTkComboBox(form, values=["Active", "On Leave", "Dropped", "Graduated"], width=300, height=35)
-        self.combo_status.grid(row=3, column=1, sticky="w", padx=(10, 0))
-
+        self.combo_status.grid(row=4, column=1, sticky="w", padx=(10, 0))
+        
         # Buttons
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(fill="x", padx=30, pady=30)
@@ -287,21 +301,22 @@ class StudentDialog(ctk.CTkToplevel):
             self.ent_name.insert(0, data.full_name)
             self.ent_id.insert(0, data.student_code)
             self.ent_email.insert(0, data.email)
+            self.ent_phone.insert(0, data.phone if data.phone else "")
+            self.ent_major.insert(0, data.major if data.major else "")
+            self.ent_year.insert(0, str(data.academic_year) if data.academic_year else "")
             
             # Set Department
             current_dept = data.dept_name if data.dept_name else ""
             if current_dept in dept_names:
                 self.combo_dept.set(current_dept)
             elif dept_names:
-                self.combo_dept.set(dept_names[0])
+                self.combo_dept.set(dept_names[0]) # Set default department if current not found
                 
-            self.combo_status.set(data.academic_status)
-            # Nếu edit, có thể disable ID
+            self.combo_status.set(data.academic_status) # Set current status
+            # If editing, ID can be disabled
             self.ent_id.configure(state="disabled")
-
         self.lift()
-        self.focus_force()
-        self.after(100, self.grab_set)
+        self.after(100, lambda: [self.focus_force(), self.grab_set()])
 
     def _add_field(self, parent, r, c, label, placeholder):
         ctk.CTkLabel(parent, text=label, font=("Arial", 12, "bold"), text_color="#555").grid(row=r*2, column=c, sticky="w", pady=(10, 5))
@@ -310,29 +325,50 @@ class StudentDialog(ctk.CTkToplevel):
         return ent
 
     def save(self):
-        dept_name = self.combo_dept.get()
+        dept_name = self.combo_dept.get() # Get selected department name
         dept_id = self.dept_map.get(dept_name)
         
         if not dept_id:
             messagebox.showerror("Error", "Please select a valid department", parent=self)
             return
         
-        if self.data: # Update
-             success, msg = self.controller.update_student(
-                 self.data.student_id, self.ent_name.get(), self.ent_email.get(), dept_id, self.combo_status.get()
-             )
-        else: # Create
-             success, msg = self.controller.create_student(
-                 full_name=self.ent_name.get(), email=self.ent_email.get(),
-                 phone="0000000000", student_code=self.ent_id.get(),
-                 dept_id=dept_id, major="N/A", year=2024
-             )
+        # Get UI data before entering thread (as threads should not interact with UI directly)
+        data_payload = {
+            'full_name': self.ent_name.get(),
+            'email': self.ent_email.get(),
+            'student_code': self.ent_id.get(),
+            'phone': self.ent_phone.get(),
+            'major': self.ent_major.get(),
+            'year': self.ent_year.get(),
+            'status': self.combo_status.get(),
+            'dept_id': dept_id
+        }
         
-        if success:
-            self.callback()
-            self.destroy()
-        else:
-            messagebox.showerror("Error", msg, parent=self)
+        def _save_task():
+            if self.data: # Update
+                return self.controller.update_student(
+                    self.data.student_id, data_payload['full_name'], data_payload['email'],
+                    data_payload['phone'],
+                    data_payload['dept_id'], data_payload['major'], 
+                    data_payload['year'],
+                    data_payload['status']
+                )
+            else: # Create
+                return self.controller.create_student(
+                    full_name=data_payload['full_name'], email=data_payload['email'],
+                    phone=data_payload['phone'], student_code=data_payload['student_code'],
+                    dept_id=data_payload['dept_id'], major=data_payload['major'], year=data_payload['year']
+                )
+
+        def _on_save_done(result):
+            success, msg = result
+            if success:
+                self.callback()
+                self.destroy()
+            else:
+                messagebox.showerror("Error", msg, parent=self)
+
+        run_in_background(_save_task, _on_save_done, tk_root=self.winfo_toplevel())
 
 
 # ==========================================
@@ -352,20 +388,35 @@ class AcademicRecordDialog(ctk.CTkToplevel):
         ctk.CTkLabel(header, text="Academic Record", font=("Arial", 18, "bold"), text_color="#333").pack(anchor="w")
         ctk.CTkLabel(header, text=f"Student: {student_data.full_name} ({student_data.student_code})", text_color="gray").pack(anchor="w")
 
-        # 2. Fetch Data
-        record = controller.get_student_academic_record(student_data.student_id)
+        # 2. Loading State
+        self.loading_lbl = ctk.CTkLabel(self, text="Loading academic records...", text_color="gray")
+        self.loading_lbl.pack(pady=40)
+        
+        self.content_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.content_frame.pack(fill="both", expand=True)
 
-        # 3. Stats Cards
-        stats = ctk.CTkFrame(self, fg_color="transparent")
+        # 3. Fetch Data Async
+        run_in_background(
+            lambda: controller.get_student_academic_record(student_data.student_id),
+            self._render_ui,
+            tk_root=self
+        )
+
+    def _render_ui(self, record):
+        if not self.winfo_exists(): return
+        self.loading_lbl.destroy()
+
+        # 4. Stats Cards
+        stats = ctk.CTkFrame(self.content_frame, fg_color="transparent")
         stats.pack(fill="x", padx=30, pady=10)
         self._card(stats, "GPA", str(record['gpa']), "#EFF6FF", "#2563EB")
         self._card(stats, "CREDITS EARNED", str(record['credits']), "#F0FDF4", "#16A34A")
         self._card(stats, "STATUS", record['status'], "#FAF5FF", "#9333EA")
-
-        # 4. Grades Table
-        ctk.CTkLabel(self, text="Course Performance", font=("Arial", 14, "bold"), text_color="#333").pack(anchor="w", padx=30, pady=(20, 10))
         
-        table = ctk.CTkScrollableFrame(self, fg_color="#F9FAFB", height=200)
+        # 5. Grades Table
+        ctk.CTkLabel(self.content_frame, text="Course Performance", font=("Arial", 14, "bold"), text_color="#333").pack(anchor="w", padx=30, pady=(20, 10))
+        
+        table = ctk.CTkScrollableFrame(self.content_frame, fg_color="#F9FAFB", height=200)
         table.pack(fill="both", expand=True, padx=30, pady=(0, 20))
         
         # Header
@@ -383,12 +434,11 @@ class AcademicRecordDialog(ctk.CTkToplevel):
             ctk.CTkLabel(table, text=str(g['final']), anchor="center", width=150).grid(row=idx, column=2)
             ctk.CTkLabel(table, text=str(g['total']), font=("Arial", 12, "bold"), text_color="#10B981", anchor="center", width=150).grid(row=idx, column=3)
 
-        # Close Btn
-        ctk.CTkButton(self, text="Close", fg_color="#333", command=self.destroy, width=100).pack(pady=20, anchor="e", padx=30)
+        # Close Button
+        ctk.CTkButton(self.content_frame, text="Close", fg_color="#333", command=self.destroy, width=100).pack(pady=20, anchor="e", padx=30)
         
         self.lift()
-        self.focus_force()
-        self.after(100, self.grab_set)
+        self.after(100, lambda: [self.focus_force(), self.grab_set()])
 
     def _card(self, parent, title, value, bg, fg):
         card = ctk.CTkFrame(parent, fg_color=bg, corner_radius=8, width=200)

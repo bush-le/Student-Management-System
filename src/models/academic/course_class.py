@@ -1,6 +1,6 @@
 class CourseClass:
     def __init__(self, class_id, course_id, semester_id, room, schedule, max_capacity, lecturer_id=None, 
-                 course_name=None, lecturer_name=None, current_enrolled=0):
+                 course_name=None, course_code=None, lecturer_name=None, current_enrolled=0):
         self.class_id = class_id
         self.course_id = course_id
         self.semester_id = semester_id
@@ -9,7 +9,9 @@ class CourseClass:
         self.max_capacity = max_capacity
         self.lecturer_id = lecturer_id
         # Fields mở rộng để hiển thị
+        # Extended fields for display
         self.course_name = course_name
+        self.course_code = course_code
         self.lecturer_name = lecturer_name
         self.current_enrolled = current_enrolled
 
@@ -25,6 +27,7 @@ class CourseClass:
             max_capacity=row.get('max_capacity'),
             lecturer_id=row.get('lecturer_id'),
             course_name=row.get('course_name'),
+            course_code=row.get('course_code'),
             lecturer_name=row.get('lecturer_name'),
             current_enrolled=row.get('current_enrolled', 0)
         )

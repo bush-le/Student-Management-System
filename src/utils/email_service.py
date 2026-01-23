@@ -17,14 +17,14 @@ class EmailService:
 
         resend.api_key = Config.RESEND_API_KEY
 
-        # Nội dung HTML (Giữ nguyên như bạn đã viết, rất đẹp rồi)
+        # HTML content (Kept as you wrote, it's already good)
         html_content = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; padding: 20px;">
             <h2 style="color: #2c3e50; text-align: center;">Password Recovery Request</h2>
             <p>Hello,</p>
             <p>You recently requested to reset your password for the <strong>Student Management System</strong>.</p>
             <div style="background-color: #f4f4f4; padding: 15px; text-align: center; border-radius: 5px; margin: 20px 0;">
-                <h1 style="color: #27ae60; margin: 0; letter-spacing: 5px; font-size: 32px;">{reset_code}</h1>
+                <h1 style="color: #27ae60; margin: 0; letter-spacing: 5px; font-size: 32px;">{reset_code}</h1> # Display the reset code
             </div>
             <p>This code is valid for <strong>15 minutes</strong>.</p>
             <hr style="border: none; border-top: 1px solid #eee; margin-top: 20px;" />
@@ -32,8 +32,8 @@ class EmailService:
         </div>
         """
 
-        # Lưu ý: Nếu chưa add domain vào Resend, "from" bắt buộc là onboarding@resend.dev
-        # Và "to" bắt buộc là email bạn dùng đăng ký tài khoản Resend.
+        # Note: If you haven't added a domain to Resend, "from" must be onboarding@resend.dev
+        # And "to" must be the email you used to register your Resend account.
         params = {
             "from": "Student Management System <onboarding@resend.dev>",
             "to": [to_email],
@@ -43,10 +43,8 @@ class EmailService:
 
         try:
             email_response = resend.Emails.send(params)
-            
-            # Kiểm tra ID trả về
+            # Check returned ID
             if email_response and ('id' in email_response or hasattr(email_response, 'id')):
-                # Resend phiên bản mới có thể trả về object thay vì dict
                 print(f"✅ Email sent to {to_email}")
                 return True
             else:

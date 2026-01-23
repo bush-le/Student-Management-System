@@ -17,7 +17,7 @@ class DatabaseConnection:
             try:
                 cls._pool = pooling.MySQLConnectionPool(
                     pool_name="student_management_pool",
-                    pool_size=15,
+                    pool_size=5,
                     host=Config.DB_HOST,
                     port=Config.DB_PORT,
                     user=Config.DB_USER,

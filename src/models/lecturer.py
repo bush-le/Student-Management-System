@@ -7,7 +7,7 @@ class Lecturer(User):
         self.lecturer_code = lecturer_code
         self.dept_id = dept_id
         self.degree = degree
-        self.dept_name = dept_name # Field mở rộng khi join
+        self.dept_name = dept_name
 
     @classmethod
     def from_db_row(cls, row):

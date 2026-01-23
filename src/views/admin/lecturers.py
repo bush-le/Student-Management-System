@@ -2,20 +2,17 @@ import customtkinter as ctk
 from tkinter import messagebox
 from controllers.admin_controller import AdminController
 from utils.threading_helper import run_in_background
-from utils.pagination import PaginationHelper
 
 class LecturersFrame(ctk.CTkFrame):
-    def __init__(self, parent, user_id):
+    def __init__(self, parent, controller):
         super().__init__(parent, fg_color="transparent")
-        self.controller = AdminController(user_id)
-        
-        # Cấu hình phân trang
+        self.controller = controller
+        # Pagination configuration
         self.current_page = 1
         self.per_page = 5
-        self.total_pages = 1
+        self.total_pages = 1 # Initialize total pages
         self.total_items = 0
-        
-        # --- CẤU HÌNH ĐỘ RỘNG CỐ ĐỊNH (PIXEL) ---
+        # --- FIXED WIDTH CONFIGURATION (PIXEL) ---
         self.col_widths = [80, 200, 200, 120, 150, 100, 120]
 
         # 1. Toolbar
@@ -75,24 +72,24 @@ class LecturersFrame(ctk.CTkFrame):
         btn_box.pack(side="right", padx=20)
 
         self.prev_btn = ctk.CTkButton(
-            btn_box, text="← Previous", width=90, height=32,
+            btn_box, text="< Previous", width=90, height=32,
             fg_color="white", text_color="#333", border_color="#D1D5DB", border_width=1,
             hover_color="#F3F4F6", state="disabled", command=self.prev_page
         )
         self.prev_btn.pack(side="left", padx=5)
         
         self.next_btn = ctk.CTkButton(
-            btn_box, text="Next →", width=90, height=32,
+            btn_box, text="Next >", width=90, height=32,
             fg_color="#0F766E", text_color="white", hover_color="#115E59",
             state="disabled", command=self.next_page
         )
         self.next_btn.pack(side="left", padx=5)
 
-    def load_data(self):
+    def load_data(self): # Load data into the table
         for w in self.table_frame.winfo_children(): w.destroy()
         ctk.CTkLabel(self.table_frame, text="Loading data...", text_color="gray").pack(pady=20)
         
-        run_in_background(
+        run_in_background( # Run data fetching in background
             self._fetch_lecturers,
             on_complete=self._render_lecturers,
             tk_root=self.winfo_toplevel()
@@ -100,13 +97,28 @@ class LecturersFrame(ctk.CTkFrame):
     
     def _fetch_lecturers(self):
         try:
-            all_lecs = self.controller.get_all_lecturers()
-            return PaginationHelper.paginate(all_lecs, self.current_page, self.per_page)
+            # 1. Get current page data
+            lecturers = self.controller.get_all_lecturers(page=self.current_page, per_page=self.per_page)
+            
+            # 2. Get total count to calculate total_pages
+            total_items = self.controller.get_total_lecturers()
+            total_pages = (total_items + self.per_page - 1) // self.per_page
+            
+            return {
+                'data': lecturers,
+                'page': self.current_page,
+                'per_page': self.per_page,
+                'total_items': total_items,
+                'total_pages': total_pages,
+                'has_next': self.current_page < total_pages,
+                'has_prev': self.current_page > 1
+            }
         except Exception as e:
             print(f"Error fetching: {e}")
             return None
     
     def _render_lecturers(self, result):
+        if not self.winfo_exists(): return
         for w in self.table_frame.winfo_children(): w.destroy()
         
         if not result or not result['data']:
@@ -120,7 +132,7 @@ class LecturersFrame(ctk.CTkFrame):
         self.total_items = result['total_items']
         self.page_label.configure(text=f"Page {self.current_page} of {self.total_pages} ({self.total_items} items)")
         
-        # --- FIX LỖI 2: SyntaxError (Bỏ dấu bằng sau else) ---
+        # --- FIX ERROR 2: SyntaxError (Removed equals sign after else) ---
         self.prev_btn.configure(
             state="normal" if result['has_prev'] else "disabled", 
             fg_color="white" if result['has_prev'] else "#F3F4F6"
@@ -144,7 +156,7 @@ class LecturersFrame(ctk.CTkFrame):
             self.load_data()
 
     def create_row(self, data, idx):
-        bg_color = "white" if idx % 2 == 0 else "#F9FAFB"
+        bg_color = "white" if idx % 2 == 0 else "#F9FAFB" # Alternating row background color
         row = ctk.CTkFrame(self.table_frame, fg_color=bg_color, corner_radius=0, height=45)
         row.pack(fill="x")
         
@@ -160,7 +172,7 @@ class LecturersFrame(ctk.CTkFrame):
         actions = ctk.CTkFrame(row, fg_color="transparent", width=self.col_widths[6])
         actions.grid(row=0, column=6, sticky="ew", padx=5)
         actions.grid_propagate(False)
-
+        # Edit and Delete buttons
         self._action_btn(actions, "Edit", "#3B82F6", lambda: self.open_edit_dialog(data))
         ctk.CTkLabel(actions, text=" ", width=5).pack(side="left")
         self._action_btn(actions, "Del", "#EF4444", lambda: self.delete_item(data.lecturer_id))
@@ -176,9 +188,11 @@ class LecturersFrame(ctk.CTkFrame):
 
     def delete_item(self, lid):
         if messagebox.askyesno("Confirm", "Delete this lecturer?"):
-            success, msg = self.controller.delete_lecturer(lid)
-            if success: self.load_data()
-            else: messagebox.showerror("Error", msg)
+            run_in_background(
+                lambda: self.controller.delete_lecturer(lid),
+                lambda res: self.load_data() if res[0] else messagebox.showerror("Error", res[1]),
+                tk_root=self.winfo_toplevel()
+            )
 
     def open_add_dialog(self):
         LecturerDialog(self, "Add New Lecturer", self.controller, self.load_data)
@@ -186,9 +200,8 @@ class LecturersFrame(ctk.CTkFrame):
     def open_edit_dialog(self, data):
         LecturerDialog(self, "Edit Lecturer", self.controller, self.load_data, data)
 
-
 # ==========================================
-# POPUP: ADD/EDIT LECTURER (ĐÃ SỬA DEPT MAP)
+# POPUP: ADD/EDIT LECTURER (FIXED DEPT MAP)
 # ==========================================
 class LecturerDialog(ctk.CTkToplevel):
     def __init__(self, parent, title, controller, callback, data=None):
@@ -198,7 +211,7 @@ class LecturerDialog(ctk.CTkToplevel):
         self.data = data
         self.title(title)
         
-        self.departments = self.controller.get_all_departments()
+        self.departments = self.controller.get_all_departments() # Fetch departments for dropdown
         self.dept_map = {d.dept_name: d.dept_id for d in self.departments}
         dept_names = list(self.dept_map.keys())
         
@@ -208,7 +221,7 @@ class LecturerDialog(ctk.CTkToplevel):
         self.configure(fg_color="white")
         
         ctk.CTkLabel(self, text=title, font=("Arial", 20, "bold"), text_color="#111827").pack(pady=25, anchor="w", padx=40)
-
+        # Form fields
         form = ctk.CTkFrame(self, fg_color="transparent")
         form.pack(fill="both", expand=True, padx=40)
 
@@ -218,7 +231,7 @@ class LecturerDialog(ctk.CTkToplevel):
         self.ent_phone = self._add_field(form, 1, 1, "Phone Number", "0912345678")
 
         ctk.CTkLabel(form, text="Department", font=("Arial", 12, "bold"), text_color="#374151").grid(row=4, column=0, sticky="w", pady=(10, 5))
-        self.combo_dept = ctk.CTkComboBox(
+        self.combo_dept = ctk.CTkComboBox( # Department dropdown
             form, values=dept_names, 
             width=300, height=40, border_color="#E5E7EB", fg_color="white", text_color="black"
         )
@@ -226,7 +239,7 @@ class LecturerDialog(ctk.CTkToplevel):
 
         self.ent_degree = self._add_field(form, 2, 1, "Academic Degree", "e.g. Ph.D. in AI")
 
-        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent") # Buttons container
         btn_frame.pack(fill="x", padx=40, pady=30)
         
         ctk.CTkButton(
@@ -239,7 +252,7 @@ class LecturerDialog(ctk.CTkToplevel):
             btn_frame, text="Save Details", fg_color="#0F766E", hover_color="#115E59", 
             width=140, height=40, font=("Arial", 13, "bold"),
             command=self.save
-        ).pack(side="right")
+        ).pack(side="right") # Save button 
 
         if data:
             self.ent_id.insert(0, data.lecturer_code)
@@ -252,13 +265,12 @@ class LecturerDialog(ctk.CTkToplevel):
                 self.combo_dept.set(current_dept)
             else:
                 self.combo_dept.set(dept_names[0] if dept_names else "")
-            
+            # Set degree and disable ID field
             self.ent_degree.delete(0, 'end'); self.ent_degree.insert(0, data.degree)
             self.ent_id.configure(state="disabled") 
 
         self.lift()
-        self.focus_force()
-        self.after(100, self.grab_set)
+        self.after(100, lambda: [self.focus_force(), self.grab_set()])
 
     def _add_field(self, parent, r, c, label, placeholder):
         ctk.CTkLabel(parent, text=label, font=("Arial", 12, "bold"), text_color="#374151").grid(row=r*2, column=c, sticky="w", pady=(10, 5))
@@ -267,25 +279,38 @@ class LecturerDialog(ctk.CTkToplevel):
         return ent
 
     def save(self):
-        dept_name = self.combo_dept.get()
+        dept_name = self.combo_dept.get() # Get selected department name
         dept_id = self.dept_map.get(dept_name)
         
         if not dept_id:
             messagebox.showerror("Error", "Please select a valid department", parent=self)
             return
 
-        if self.data:
-            success, msg = self.controller.update_lecturer(
-                self.data.lecturer_id, self.ent_name.get(), self.ent_email.get(), 
-                self.ent_phone.get(), dept_id, self.ent_degree.get()
-            )
-        else:
-            success, msg = self.controller.create_lecturer(
-                self.ent_id.get(), self.ent_name.get(), self.ent_email.get(), 
-                self.ent_phone.get(), dept_id, self.ent_degree.get()
-            )
-        if success:
-            self.callback()
-            self.destroy()
-        else:
-            messagebox.showerror("Error", msg, parent=self)
+        # Gather data from widgets in the main thread (Thread Safety)
+        l_id = self.ent_id.get()
+        name = self.ent_name.get()
+        email = self.ent_email.get()
+        phone = self.ent_phone.get()
+        degree = self.ent_degree.get()
+
+        def _save_task():
+            if self.data:
+                return self.controller.update_lecturer(
+                    self.data.lecturer_id, name, email, 
+                    phone, dept_id, degree
+                )
+            else:
+                return self.controller.create_lecturer(
+                    l_id, name, email, 
+                    phone, dept_id, degree
+                )
+
+        def _on_complete(result):
+            success, msg = result
+            if success:
+                self.callback()
+                self.destroy()
+            else:
+                messagebox.showerror("Error", msg, parent=self)
+
+        run_in_background(_save_task, _on_complete, tk_root=self.winfo_toplevel())

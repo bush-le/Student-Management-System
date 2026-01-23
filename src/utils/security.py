@@ -2,6 +2,7 @@ import bcrypt
 import secrets
 import string
 import re
+import logging
 
 class Security:
     """
@@ -15,12 +16,12 @@ class Security:
         NFR-09: Encrypt password before saving to DB.
         Uses BCrypt (Salt is automatically handled).
         """
-        # Bcrypt yêu cầu bytes
+        # Bcrypt requires bytes
         pwd_bytes = password.encode('utf-8')
-        # Tạo salt và hash
+        # Generate salt and hash
         salt = bcrypt.gensalt()
         hashed = bcrypt.hashpw(pwd_bytes, salt)
-        # Trả về chuỗi decode để lưu vào Database (VARCHAR)
+        # Return decoded string to save to Database (VARCHAR)
         return hashed.decode('utf-8')
 
     @staticmethod
@@ -31,20 +32,18 @@ class Security:
         if not stored_hash or not provided_password:
             return False
             
-        try:
-            # Chuyển đổi về bytes để so sánh
+        try: # Convert to bytes for comparison
             stored_bytes = stored_hash.encode('utf-8')
             provided_bytes = provided_password.encode('utf-8')
-            
-            # Bcrypt tự trích xuất salt từ stored_hash để so sánh
+            # Bcrypt automatically extracts salt from stored_hash for comparison
             return bcrypt.checkpw(provided_bytes, stored_bytes)
             
         except ValueError as e:
             # Lỗi này xảy ra nếu stored_hash không phải chuẩn Bcrypt
-            print(f"⚠️ Bcrypt Error: {e}") # Để xem lỗi chi tiết
+            logging.warning(f"⚠️ Bcrypt Error: {e}") # Sử dụng logging thay vì print
             return False
         except Exception as e:
-            print(f"System Error: {e}")
+            logging.error(f"System Error: {e}")
             return False
 
     @staticmethod

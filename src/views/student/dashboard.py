@@ -17,20 +17,20 @@ class StudentDashboard(ctk.CTkFrame):
         self.user = user
         self.auth_controller = AuthController()
         
-        # --- MÀU SẮC CHỦ ĐẠO (TEAL THEME) ---
-        self.COLOR_PRIMARY = "#0F766E"      # Teal đậm
-        self.COLOR_ACCENT = "#14B8A6"       # Teal sáng
-        self.COLOR_SIDEBAR = "#FFFFFF"      # Trắng
-        self.COLOR_TEXT_MAIN = "#111827"    # Đen
-        self.COLOR_TEXT_SUB = "#6B7280"     # Xám
+        self.COLOR_PRIMARY = "#0F766E"      # Dark Teal
+        self.COLOR_ACCENT = "#14B8A6"       # Light Teal
+        self.COLOR_SIDEBAR = "#FFFFFF"      # White
+        self.COLOR_TEXT_MAIN = "#111827"    # Black
+        self.COLOR_TEXT_SUB = "#6B7280"     # Gray
         
         # State
         self.nav_buttons = {} 
+        self.active_view = "home" # Track current active view
 
         try:
             self.controller = StudentController(user.user_id)
             
-            # Khởi tạo dữ liệu mặc định
+            # Initialize default data
             self.next_class = None
             self.stats = {'gpa': 0.0, 'credits': 0, 'semester': 'N/A'}
             self.recent_grades = []
@@ -58,15 +58,15 @@ class StudentDashboard(ctk.CTkFrame):
             self.create_user_menu_frame()
             self.create_notif_menu_frame()
 
-            # Tải dữ liệu thật từ DB ngầm
+            # Load real data from DB in background
             self.load_real_data()
 
         except Exception as e:
-            print("❌ LỖI KHỞI TẠO DASHBOARD:")
+            print("❌ DASHBOARD INITIALIZATION ERROR:")
             traceback.print_exc()
 
     def load_real_data(self):
-        """Tải dữ liệu từ controller trong background thread"""
+        """Loads data from the controller in a background thread"""
         run_in_background(
             self._fetch_dashboard_data,
             on_complete=self._on_data_loaded,
@@ -75,12 +75,16 @@ class StudentDashboard(ctk.CTkFrame):
 
     def _fetch_dashboard_data(self):
         try:
-            # Kiểm tra sự tồn tại của phương thức trước khi gọi để tránh AttributeError
-            # Điều này giúp Dashboard vẫn hiển thị được các phần dữ liệu khác nếu một phương thức bị thiếu
+            # Check for method existence before calling to avoid AttributeError
+            # This allows the Dashboard to still display other data sections if a method is missing
+            
+            # OPTIMIZATION: Fetch stats and recent grades in one go
+            stats, recent = self.controller.get_dashboard_academic_summary()
+            
             data = {
                 'next_class': self.controller.get_upcoming_class() if hasattr(self.controller, 'get_upcoming_class') else None,
-                'stats': self.controller.get_academic_stats() if hasattr(self.controller, 'get_academic_stats') else {'gpa': 0.0, 'credits': 0, 'semester': 'N/A'},
-                'recent_grades': self.controller.get_recent_grades(limit=3) if hasattr(self.controller, 'get_recent_grades') else [],
+                'stats': stats,
+                'recent_grades': recent,
                 'announcements': self.controller.get_latest_announcements(limit=3) if hasattr(self.controller, 'get_latest_announcements') else []
             }
             return data
@@ -89,24 +93,31 @@ class StudentDashboard(ctk.CTkFrame):
             return None
 
     def _on_data_loaded(self, data):
+        # SAFETY CHECK: Ensure widget still exists before updating UI
+        if not self.winfo_exists(): return
+
         if data:
             self.next_class = data['next_class']
             self.stats = data['stats']
             self.recent_grades = data['recent_grades']
             self.announcements = data['announcements']
-        self.show_home()
+            
+        # UX FIX: Only refresh UI if user is still on the Dashboard Home
+        if self.active_view == "home":
+            self.show_home()
+        self.update_notif_menu()
 
     def create_header(self):
         header = ctk.CTkFrame(self.main_area, fg_color="transparent", height=60)
         header.grid(row=0, column=0, sticky="ew", padx=30, pady=(15, 0))
         
-        self.page_title = ctk.CTkLabel(header, text="Overview", font=("Arial", 22, "bold"), text_color=self.COLOR_TEXT_MAIN)
+        self.page_title = ctk.CTkLabel(header, text="Dashboard", font=("Arial", 22, "bold"), text_color=self.COLOR_TEXT_MAIN)
         self.page_title.pack(side="left", anchor="c")
 
         right_box = ctk.CTkFrame(header, fg_color="transparent")
         right_box.pack(side="right", anchor="c")
         
-        # Date
+        # Date display
         today = datetime.now().strftime("%d %b %Y")
         ctk.CTkLabel(right_box, text=today, font=("Arial", 12, "bold"), text_color="gray").pack(side="left", padx=15)
 
@@ -126,24 +137,106 @@ class StudentDashboard(ctk.CTkFrame):
             command=self.toggle_user_menu
         ).pack(side="left", padx=5)
 
+    # =========================================================================
+    # 4. USER MENU & NOTIFICATIONS POPUPS
+    # =========================================================================
     def create_user_menu_frame(self):
-        self.user_menu = ctk.CTkFrame(self.main_area, width=160, fg_color="white", corner_radius=5, border_width=1, border_color="#E5E7EB")
-        ctk.CTkButton(self.user_menu, text="My Profile", fg_color="white", text_color="#333", hover_color="#F3F4F6", anchor="w", command=self.show_profile).pack(fill="x", padx=2, pady=2)
-        ctk.CTkButton(self.user_menu, text="Change Password", fg_color="white", text_color="#333", hover_color="#F3F4F6", anchor="w", command=self.open_change_password_popup).pack(fill="x", padx=2, pady=2)
-        ctk.CTkFrame(self.user_menu, height=1, fg_color="#E5E7EB").pack(fill="x")
-        ctk.CTkButton(self.user_menu, text="Sign Out", fg_color="white", text_color="#EF4444", hover_color="#FEF2F2", anchor="w", command=self.app.show_login).pack(fill="x", padx=2, pady=2)
+        """Creates a Popup Menu with Account Header and Email"""
+        self.user_menu = ctk.CTkFrame(
+            self.main_area, 
+            width=240, 
+            fg_color="white", 
+            corner_radius=8, 
+            border_width=1, 
+            border_color="#E5E7EB"
+        )
+        
+        # --- 1. HEADER SECTION (ACCOUNT INFO) ---
+        header_frame = ctk.CTkFrame(self.user_menu, fg_color="transparent")
+        header_frame.pack(fill="x", padx=20, pady=(15, 10))
+        
+        # Small gray "ACCOUNT" label
+        ctk.CTkLabel(
+            header_frame, 
+            text="ACCOUNT", 
+            font=("Arial", 10, "bold"), 
+            text_color="#9CA3AF"
+        ).pack(anchor="w")
+        # User Email (Bold, black)
+        # Get email from user object, with fallback
+        user_email = getattr(self.user, 'email', '')
+        ctk.CTkLabel(
+            header_frame, 
+            text=user_email, 
+            font=("Arial", 13, "bold"), 
+            text_color="#1F2937"
+        ).pack(anchor="w", pady=(2, 0))
+        
+        # Separator line
+        ctk.CTkFrame(self.user_menu, height=1, fg_color="#F3F4F6").pack(fill="x", pady=5)
+        
+        # --- 2. MENU ITEMS ---
+        self._menu_btn(self.user_menu, "My Profile", self.show_profile)
+        self._menu_btn(self.user_menu, "Change Password", self.open_change_password_popup)
+        
+        # Separator line before Sign Out button
+        ctk.CTkFrame(self.user_menu, height=1, fg_color="#F3F4F6").pack(fill="x", pady=5)
+        
+        # --- 3. SIGN OUT (RED) ---
+        self._menu_btn(
+            self.user_menu, "Sign Out", self.app.show_login, 
+            text_color="#EF4444", hover_color="#FEF2F2"
+        )
 
     def create_notif_menu_frame(self):
-        self.notif_menu = ctk.CTkFrame(self.main_area, width=250, fg_color="white", corner_radius=5, border_width=1, border_color="#E5E7EB")
-        ctk.CTkLabel(self.notif_menu, text="NOTIFICATIONS", font=("Arial", 10, "bold"), text_color="gray").pack(anchor="w", padx=10, pady=10)
-        ctk.CTkButton(self.notif_menu, text="See All", fg_color="transparent", text_color=self.COLOR_PRIMARY, font=("Arial", 11, "bold"), command=self.show_notifications).pack(anchor="e", padx=10)
+        self.notif_menu = ctk.CTkFrame(self.main_area, width=300, fg_color="white", corner_radius=8, border_width=1, border_color="#E5E7EB")
+        
+        # Header
+        header = ctk.CTkFrame(self.notif_menu, fg_color="transparent")
+        header.pack(fill="x", padx=15, pady=(15, 5))
+        ctk.CTkLabel(header, text="NOTIFICATIONS", font=("Arial", 11, "bold"), text_color="#9CA3AF").pack(side="left")
+        
+        ctk.CTkButton(
+            header, text="View All", fg_color="transparent", text_color=self.COLOR_PRIMARY, 
+            font=("Arial", 11, "bold"), width=60, height=20, hover=False,
+            command=lambda: [self.toggle_notif_menu(), self.show_notifications()]
+        ).pack(side="right")
+        
+        ctk.CTkFrame(self.notif_menu, height=1, fg_color="#F3F4F6").pack(fill="x", pady=5)
+        
+        # List Container
+        self.notif_list_frame = ctk.CTkFrame(self.notif_menu, fg_color="transparent")
+        self.notif_list_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
-    def toggle_user_menu(self):
+    def update_notif_menu(self):
+        """Updates the content of the notification popup from loaded data"""
+        for w in self.notif_list_frame.winfo_children(): w.destroy()
+        
+        if not self.announcements:
+            ctk.CTkLabel(self.notif_list_frame, text="No new notifications", font=("Arial", 12), text_color="gray").pack(pady=20)
+            return
+
+        # Display up to 3 latest announcements
+        for ann in self.announcements[:3]:
+            btn = ctk.CTkButton(
+                self.notif_list_frame, 
+                text=getattr(ann, 'title', 'No Title'),
+                fg_color="white", hover_color="#F3F4F6", text_color="#333", anchor="w",
+                font=("Arial", 12), height=35,
+                command=lambda: [self.toggle_notif_menu(), self.show_notifications()]
+            )
+            btn.pack(fill="x", pady=1, padx=5)
+
+    def toggle_user_menu(self, event=None):
+        """Shows/Hides the user menu at the correct position"""
         if self.user_menu.winfo_ismapped():
             self.user_menu.place_forget()
         else:
-            if self.notif_menu.winfo_ismapped(): self.notif_menu.place_forget()
-            self.user_menu.place(relx=1.0, rely=0.0, anchor="ne", x=-30, y=75)
+            # Close notification menu if open
+            if hasattr(self, 'notif_menu') and self.notif_menu.winfo_ismapped(): 
+                self.notif_menu.place_forget()
+            # Set position: Directly below the User name button, right-aligned
+            self.user_menu.place(relx=1.0, rely=0.0, anchor="ne", x=-30, y=65)
             self.user_menu.lift()
 
     def toggle_notif_menu(self):
@@ -151,8 +244,23 @@ class StudentDashboard(ctk.CTkFrame):
             self.notif_menu.place_forget()
         else:
             if self.user_menu.winfo_ismapped(): self.user_menu.place_forget()
-            self.notif_menu.place(relx=1.0, rely=0.0, anchor="ne", x=-160, y=75)
+            self.notif_menu.place(relx=1.0, rely=0.0, anchor="ne", x=-160, y=65)
             self.notif_menu.lift()
+
+    def _menu_btn(self, parent, text, command, text_color="#374151", hover_color="#F3F4F6"):
+        """Helper to create a cleaner button in the menu"""
+        btn = ctk.CTkButton(
+            parent, 
+            text=text, 
+            fg_color="transparent", 
+            text_color=text_color, 
+            hover_color=hover_color, 
+            anchor="w", 
+            height=40, 
+            font=("Arial", 13), # Close menu after click
+            command=lambda: [self.toggle_user_menu(), command()]
+        )
+        btn.pack(fill="x", padx=5, pady=2)
 
     def open_change_password_popup(self):
         if self.user_menu.winfo_ismapped(): self.user_menu.place_forget()
@@ -200,31 +308,39 @@ class StudentDashboard(ctk.CTkFrame):
         if new_p != conf_p: 
             messagebox.showerror("Error", "Mismatch", parent=popup); return
             
-        success, msg = self.auth_controller.change_password(self.user.user_id, curr, new_p)
-        if success: messagebox.showinfo("Success", msg, parent=popup); popup.destroy()
-        else: messagebox.showerror("Error", msg, parent=popup)
+        # Run password change in background
+        def _change_pw():
+            return self.auth_controller.change_password(self.user.user_id, curr, new_p)
+            
+        def _on_done(result):
+            if not popup.winfo_exists(): return
+            success, msg = result
+            if success: messagebox.showinfo("Success", msg, parent=popup); popup.destroy()
+            else: messagebox.showerror("Error", msg, parent=popup)
+            
+        run_in_background(_change_pw, _on_done, tk_root=self.winfo_toplevel())
 
     def create_sidebar(self):
         sidebar = ctk.CTkFrame(self, width=240, corner_radius=0, fg_color=self.COLOR_SIDEBAR)
         sidebar.grid(row=0, column=0, sticky="nswe")
         sidebar.grid_rowconfigure(10, weight=1)
 
-        # Branding
+        # Branding section
         logo_box = ctk.CTkFrame(sidebar, fg_color="transparent")
         logo_box.grid(row=0, column=0, padx=20, pady=30, sticky="ew")
-        
+        # Logo text
         ctk.CTkLabel(logo_box, text="STUDENT PORTAL", font=("Arial", 16, "bold"), text_color=self.COLOR_PRIMARY).pack(anchor="w")
         ctk.CTkLabel(logo_box, text="Academic System", font=("Arial", 10, "bold"), text_color=self.COLOR_TEXT_SUB).pack(anchor="w")
 
         # Menu Text Only
         ctk.CTkLabel(sidebar, text="MAIN MENU", font=("Arial", 11, "bold"), text_color="#9CA3AF").grid(row=1, column=0, sticky="w", padx=30, pady=(20, 10))
 
-        self._sidebar_btn(sidebar, 2, "Dashboard", "home", self.show_home)
+        self._sidebar_btn(sidebar, 2, "Dashboard", "home", self.refresh_home)
         self._sidebar_btn(sidebar, 3, "My Schedule", "schedule", self.show_schedule)
         self._sidebar_btn(sidebar, 4, "Academic Results", "grades", self.show_grades)
         self._sidebar_btn(sidebar, 5, "My Profile", "profile", self.show_profile)
 
-        # Footer User Info
+        # Footer with user info
         footer = ctk.CTkFrame(sidebar, fg_color="#F0FDFA", corner_radius=0, height=60)
         footer.grid(row=11, column=0, padx=0, pady=0, sticky="ew")
         
@@ -257,9 +373,16 @@ class StudentDashboard(ctk.CTkFrame):
         if hasattr(self, 'notif_menu') and self.notif_menu.winfo_ismapped(): self.notif_menu.place_forget()
         for widget in self.content_scroll.winfo_children(): widget.destroy()
 
+    def refresh_home(self):
+        """Refreshes data and shows home view to ensure 'Upcoming Class' status is up-to-date"""
+        self.show_home()
+        self.load_real_data()
+
     def show_home(self):
         self.clear_content()
         self.set_active_nav("home")
+        self.active_view = "home"
+        self.page_title.configure(text="Dashboard Overview")
         self.content_scroll.grid_columnconfigure(0, weight=2)
         self.content_scroll.grid_columnconfigure(1, weight=1)
 
@@ -283,16 +406,20 @@ class StudentDashboard(ctk.CTkFrame):
         inner = ctk.CTkFrame(card, fg_color="transparent")
         inner.pack(fill="x", padx=25, pady=20)
         
-        ctk.CTkLabel(inner, text="UPCOMING CLASS", font=("Arial", 10, "bold"), text_color="#CCFBF1").pack(anchor="w")
-        
         if self.next_class:
+            # Dynamic Header based on status (Happening Now vs Upcoming)
+            status_txt = self.next_class.get('ui_status', 'UPCOMING CLASS')
+            status_col = self.next_class.get('ui_color', '#CCFBF1')
+            ctk.CTkLabel(inner, text=status_txt, font=("Arial", 11, "bold"), text_color=status_col).pack(anchor="w")
+
             c_name = self.next_class.get('course_name', 'Unknown')
             c_room = self.next_class.get('room', 'TBA')
-            c_time = self.next_class.get('time', 'TBA')
+            c_time = self.next_class.get('schedule', 'TBA')
             
             ctk.CTkLabel(inner, text=c_name, font=("Arial", 22, "bold"), text_color="white").pack(anchor="w", pady=(5, 0))
             ctk.CTkLabel(inner, text=f"Room: {c_room}  |  Time: {c_time}", font=("Arial", 13), text_color="#99F6E4").pack(anchor="w", pady=(5, 0))
         else:
+            ctk.CTkLabel(inner, text="UPCOMING CLASS", font=("Arial", 10, "bold"), text_color="#CCFBF1").pack(anchor="w")
             ctk.CTkLabel(inner, text="No classes scheduled for today.", font=("Arial", 18, "bold"), text_color="white").pack(anchor="w", pady=(10, 0))
             ctk.CTkLabel(inner, text="Enjoy your free time!", font=("Arial", 12), text_color="#99F6E4").pack(anchor="w")
 
@@ -327,16 +454,29 @@ class StudentDashboard(ctk.CTkFrame):
             ctk.CTkLabel(card, text="No grade records yet.", text_color="gray").pack(padx=20, pady=10)
         else:
             for g in self.recent_grades:
-                self._grade_row(card, g.get('course_name', 'Unknown'), g.get('total', 0.0))
+                course_name = getattr(g, 'course_name', 'Unknown')
+                total = getattr(g, 'total', None)
+                self._grade_row(card, course_name, total)
 
     def _grade_row(self, parent, name, score):
         row = ctk.CTkFrame(parent, fg_color="transparent")
         row.pack(fill="x", padx=20, pady=5)
-        
         ctk.CTkLabel(row, text=name, font=("Arial", 12), text_color="#333").pack(side="left")
         
-        col = "#16A34A" if float(score) >= 8.5 else "#CA8A04"
-        ctk.CTkLabel(row, text=str(score), font=("Arial", 12, "bold"), text_color=col).pack(side="right")
+        # Safely handle score (avoid float(None) errors)
+        if score is None:
+            col, display_score = "gray", "-"
+        else:
+            try:
+                val = float(score)
+                display_score = str(score)
+                if val >= 8.5: col = "#16A34A"   # Green (Excellent)
+                elif val >= 4.0: col = "#333333" # Black (Passed)
+                else: col = "#DC2626"            # Red (Failed)
+            except (ValueError, TypeError):
+                col, display_score = "#333", str(score)
+
+        ctk.CTkLabel(row, text=display_score, font=("Arial", 12, "bold"), text_color=col).pack(side="right")
         
         ctk.CTkFrame(parent, height=1, fg_color="#F3F4F6").pack(fill="x", padx=20, pady=5)
 
@@ -350,7 +490,9 @@ class StudentDashboard(ctk.CTkFrame):
             ctk.CTkLabel(card, text="No new announcements.", text_color="gray").pack(padx=20, pady=10)
         else:
             for ann in self.announcements:
-                self._ann_row(card, ann.get('title', ''), ann.get('content', '')[:50] + "...")
+                title = getattr(ann, 'title', '')
+                content = getattr(ann, 'content', '')
+                self._ann_row(card, title, content[:50] + "...")
 
     def _ann_row(self, parent, title, snippet):
         row = ctk.CTkFrame(parent, fg_color="transparent")
@@ -380,23 +522,36 @@ class StudentDashboard(ctk.CTkFrame):
     def show_profile(self):
         self.clear_content()
         self.set_active_nav("profile")
-        ProfileView(self.content_scroll, self.user).pack(fill="both", expand=True)
+        self.active_view = "profile"
+        self.page_title.configure(text="My Profile")
+        self.content_scroll.grid_columnconfigure(0, weight=1)
+        self.content_scroll.grid_columnconfigure(1, weight=0)
+        ProfileView(self.content_scroll, self.user, self.controller).pack(fill="both", expand=True)
 
     def show_schedule(self):
         self.clear_content()
         self.set_active_nav("schedule")
-        ScheduleFrame(self.content_scroll, self.user.user_id).pack(fill="both", expand=True)
+        self.active_view = "schedule"
+        self.page_title.configure(text="My Schedule")
+        self.content_scroll.grid_columnconfigure(0, weight=1)
+        self.content_scroll.grid_columnconfigure(1, weight=0)
+        ScheduleFrame(self.content_scroll, self.controller).pack(fill="both", expand=True)
 
     def show_grades(self):
         self.clear_content()
         self.set_active_nav("grades")
-        GradesFrame(self.content_scroll, self.user.user_id).pack(fill="both", expand=True)
+        self.active_view = "grades"
+        self.page_title.configure(text="Academic Results")
+        self.content_scroll.grid_columnconfigure(0, weight=1)
+        self.content_scroll.grid_columnconfigure(1, weight=0)
+        GradesFrame(self.content_scroll, self.controller).pack(fill="both", expand=True)
 
     def show_notifications(self):
         self.clear_content()
         self.set_active_nav("none")
+        self.active_view = "notifications"
         self.page_title.configure(text="Notifications")
         self.content_scroll.grid_columnconfigure(0, weight=1)
         self.content_scroll.grid_columnconfigure(1, weight=0)
         
-        NotificationsView(self.content_scroll, user_id=self.user.user_id).pack(fill="both", expand=True)
+        NotificationsView(self.content_scroll, self.controller).pack(fill="both", expand=True)

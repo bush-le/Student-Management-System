@@ -13,12 +13,12 @@ class Grade:
         for key, value in kwargs.items():
             setattr(self, key, value)
 
-    @classmethod
+    @classmethod # Factory method to create Grade object from a database row # Factory method to create Grade object from a database row
     def from_db_row(cls, row):
         if not row:
             return None
         
-        # Tách các trường chuẩn của Grade
+        # Separate standard Grade fields
         init_args = {
             'grade_id': row.get('grade_id'),
             'student_id': row.get('student_id'),
@@ -30,15 +30,15 @@ class Grade:
             'letter_grade': row.get('letter_grade')
         }
         
-        # Các trường còn lại (như course_name) sẽ được truyền vào kwargs
+        # Remaining fields (like course_name) will be passed to kwargs
         kwargs = {k: v for k, v in row.items() if k not in init_args}
         
         return cls(**init_args, **kwargs)
 
     def calculate_total(self):
-        """Tính điểm tổng kết theo trọng số: 10% CC, 40% GK, 50% CK"""
+        """Calculates total score based on weights: 10% Attendance, 40% Midterm, 50% Final"""
         self.total = (self.attendance_score * 0.1) + (self.midterm * 0.4) + (self.final * 0.5)
-        self.total = round(self.total, 1) # Làm tròn 1 chữ số
+        self.total = round(self.total, 1) # Round to 1 decimal place
         
         # Mapping Letter Grade
         if self.total >= 8.5: self.letter_grade = 'A'

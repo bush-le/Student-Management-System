@@ -11,6 +11,12 @@ class SemesterRepository(BaseRepository):
         row = self.execute_query(sql, (semester_id,), fetch_one=True)
         return Semester.from_db_row(row) if row else None
 
+    def get_active(self):
+        """Get the current active semester (OPEN)"""
+        sql = "SELECT * FROM Semesters WHERE status = 'OPEN' ORDER BY start_date DESC LIMIT 1"
+        row = self.execute_query(sql, fetch_one=True)
+        return Semester.from_db_row(row) if row else None
+
     def add(self, sem):
         try:
             self.execute_query("INSERT INTO Semesters (name, start_date, end_date, status) VALUES (%s, %s, %s, %s)",

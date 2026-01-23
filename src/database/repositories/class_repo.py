@@ -63,8 +63,20 @@ class ClassRepository(BaseRepository):
             return True, "Class deleted"
         except Exception as e: return False, "Cannot delete (Active grades)"
 
+    def get_schedule_by_lecturer(self, lecturer_id):
+        """Retrieves lecturer's teaching schedule"""
+        sql = """
+            SELECT cc.*, c.course_name, c.course_code,
+                   (SELECT COUNT(*) FROM Grades WHERE class_id = cc.class_id) as enrolled_count
+            FROM Course_Classes cc
+            JOIN Courses c ON cc.course_id = c.course_id
+            WHERE cc.lecturer_id = %s
+            ORDER BY cc.schedule # Order by schedule
+        """
+        return self.execute_query(sql, (lecturer_id,), fetch_all=True)
+
     def get_schedule_by_student(self, student_id):
-        """Lấy lịch học của sinh viên dựa trên các lớp đã đăng ký (có trong bảng Grades)"""
+        """Retrieves student's schedule based on registered classes (in Grades table)"""
         sql = """
             SELECT cc.schedule, cc.room, c.course_name, c.course_code, 
                    u.full_name as lecturer_name, l.lecturer_code
@@ -74,8 +86,8 @@ class ClassRepository(BaseRepository):
             LEFT JOIN Lecturers l ON cc.lecturer_id = l.lecturer_id
             LEFT JOIN Users u ON l.user_id = u.user_id
             WHERE g.student_id = %s
-        """
-        # Trả về danh sách dictionary (vì đây là dữ liệu tổng hợp để hiển thị, chưa cần map sang Model phức tạp)
+        """ # SQL query to get student's schedule
+        # Returns a list of dictionaries (as this is aggregated data for display, no need to map to complex Models yet)
         return self.execute_query(sql, (student_id,), fetch_all=True)
 
     def count_all(self):

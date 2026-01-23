@@ -2,31 +2,28 @@ import customtkinter as ctk
 from tkinter import messagebox
 from controllers.admin_controller import AdminController
 from utils.threading_helper import run_in_background
-from utils.pagination import PaginationHelper
 
 class CoursesFrame(ctk.CTkFrame):
-    def __init__(self, parent, user_id):
+    def __init__(self, parent, controller):
         super().__init__(parent, fg_color="transparent")
-        self.controller = AdminController(user_id)
-        
-        # Cấu hình phân trang
+        self.controller = controller
+        # Pagination configuration
         self.current_page = 1
         self.per_page = 10
-        self.total_pages = 1
+        self.total_pages = 1 # Initialize total pages
         self.total_items = 0
-        
-        # --- CẤU HÌNH ĐỘ RỘNG CỐ ĐỊNH (PIXEL) ---
+        # --- FIXED WIDTH CONFIGURATION (PIXEL) ---
         # [Code, Name, Credits, Prereq, Actions]
         self.col_widths = [100, 350, 100, 250, 150]
 
         # 1. Toolbar
         self.create_toolbar()
 
-        # 2. Table Header
+        # 2. Table Header 
         self.create_table_header()
 
-        # 3. Table Frame (Frame thường, không scroll)
-        self.table_frame = ctk.CTkFrame(self, fg_color="white", corner_radius=10)
+        # 3. Table Frame (Regular frame, not scrollable)
+        self.table_frame = ctk.CTkFrame(self, fg_color="white", corner_radius=10) # Regular frame, not scrollable
         self.table_frame.pack(fill="both", expand=True, pady=(0, 10))
 
         # 4. Pagination Controls
@@ -89,11 +86,11 @@ class CoursesFrame(ctk.CTkFrame):
         )
         self.next_btn.pack(side="left", padx=5)
 
-    def load_data(self):
+    def load_data(self): # Load course data
         for w in self.table_frame.winfo_children(): w.destroy()
         ctk.CTkLabel(self.table_frame, text="Loading data...", text_color="gray").pack(pady=20)
         
-        run_in_background(
+        run_in_background( # Run data fetching in background
             self._fetch_courses,
             on_complete=self._render_courses,
             tk_root=self.winfo_toplevel()
@@ -101,14 +98,29 @@ class CoursesFrame(ctk.CTkFrame):
 
     def _fetch_courses(self):
         try:
-            all_courses = self.controller.get_all_courses()
-            return PaginationHelper.paginate(all_courses, self.current_page, self.per_page)
+            # 1. Get current page data
+            courses = self.controller.get_all_courses(page=self.current_page, per_page=self.per_page)
+            
+            # 2. Get total count to calculate total_pages
+            total_items = self.controller.get_total_courses()
+            total_pages = (total_items + self.per_page - 1) // self.per_page
+            
+            return {
+                'data': courses,
+                'page': self.current_page,
+                'per_page': self.per_page,
+                'total_items': total_items,
+                'total_pages': total_pages,
+                'has_next': self.current_page < total_pages,
+                'has_prev': self.current_page > 1
+            }
         except Exception as e:
             print(f"Error: {e}")
             return None
 
     def _render_courses(self, result):
-        for w in self.table_frame.winfo_children(): w.destroy()
+        if not self.winfo_exists(): return
+        for w in self.table_frame.winfo_children(): w.destroy() # Clear existing widgets
 
         if not result or not result['data']:
             ctk.CTkLabel(self.table_frame, text="No courses found.", text_color="gray").pack(pady=20)
@@ -116,7 +128,7 @@ class CoursesFrame(ctk.CTkFrame):
             self.prev_btn.configure(state="disabled"); self.next_btn.configure(state="disabled")
             return
 
-        self.total_pages = result['total_pages']
+        self.total_pages = result['total_pages'] # Update total pages
         self.page_label.configure(text=f"Page {self.current_page} of {self.total_pages} ({result['total_items']} items)")
         
         self.prev_btn.configure(
@@ -128,7 +140,7 @@ class CoursesFrame(ctk.CTkFrame):
             fg_color="#0F766E" if result['has_next'] else "#9CA3AF"
         )
 
-        for idx, item in enumerate(result['data']):
+        for idx, item in enumerate(result['data']): # Render each course item
             self.create_row(item, idx)
 
     def prev_page(self):
@@ -142,15 +154,15 @@ class CoursesFrame(ctk.CTkFrame):
             self.load_data()
 
     def create_row(self, data, idx):
-        bg_color = "white" if idx % 2 == 0 else "#F9FAFB"
+        bg_color = "white" if idx % 2 == 0 else "#F9FAFB" # Alternating row background color
         row = ctk.CTkFrame(self.table_frame, fg_color=bg_color, corner_radius=0, height=45)
         row.pack(fill="x")
         
-        # 1. Code
+        # 1. Code 
         ctk.CTkLabel(row, text=data.course_code, font=("Arial", 12, "bold"), text_color="#333", anchor="w", 
                      width=self.col_widths[0]).grid(row=0, column=0, sticky="ew", padx=5, pady=12)
         
-        # 2. Name
+        # 2. Name 
         ctk.CTkLabel(row, text=data.course_name, font=("Arial", 12), text_color="#333", anchor="w",
                      width=self.col_widths[1]).grid(row=0, column=1, sticky="ew", padx=5)
         
@@ -159,10 +171,9 @@ class CoursesFrame(ctk.CTkFrame):
                      width=self.col_widths[2]).grid(row=0, column=2, sticky="ew", padx=5)
 
         # 4. Prereq
-        prereq = data.prerequisites_str if hasattr(data, 'prerequisites_str') and data.prerequisites_str else '-'
+        prereq = data.prerequisites_id if hasattr(data, 'prerequisites_id') and data.prerequisites_id else '-'
         ctk.CTkLabel(row, text=prereq, font=("Arial", 12), text_color="gray", anchor="w",
                      width=self.col_widths[3]).grid(row=0, column=3, sticky="ew", padx=5)
-
         # 5. Actions
         actions = ctk.CTkFrame(row, fg_color="transparent", width=self.col_widths[4])
         actions.grid(row=0, column=4, sticky="ew", padx=5)
@@ -178,9 +189,11 @@ class CoursesFrame(ctk.CTkFrame):
 
     def delete_item(self, cid):
         if messagebox.askyesno("Confirm", "Delete this course?"):
-            success, msg = self.controller.delete_course(cid)
-            if success: self.load_data()
-            else: messagebox.showerror("Error", msg)
+            run_in_background(
+                lambda: self.controller.delete_course(cid),
+                lambda res: self.load_data() if res[0] else messagebox.showerror("Error", res[1]),
+                tk_root=self.winfo_toplevel()
+            )
 
     def open_add_dialog(self):
         CourseDialog(self, "Add New Course", self.controller, self.load_data)
@@ -188,9 +201,8 @@ class CoursesFrame(ctk.CTkFrame):
     def open_edit_dialog(self, data):
         CourseDialog(self, "Edit Course", self.controller, self.load_data, data)
 
-
 # ==========================================
-# POPUP: ADD/EDIT COURSE (Giữ nguyên)
+# POPUP: ADD/EDIT COURSE (Unchanged)
 # ==========================================
 class CourseDialog(ctk.CTkToplevel):
     def __init__(self, parent, title, controller, callback, data=None):
@@ -205,7 +217,7 @@ class CourseDialog(ctk.CTkToplevel):
         self.configure(fg_color="white")
         
         ctk.CTkLabel(self, text=title, font=("Arial", 20, "bold"), text_color="#111827").pack(pady=25, anchor="w", padx=40)
-
+        # Form container
         form = ctk.CTkFrame(self, fg_color="transparent")
         form.pack(fill="both", expand=True, padx=40)
 
@@ -213,13 +225,20 @@ class CourseDialog(ctk.CTkToplevel):
         self.ent_name = self._add_field(form, 0, 1, "Course Name", "Introduction to Programming", width=400)
         self.ent_credits = self._add_field(form, 1, 0, "Credits", "3", width=200)
         
-        ctk.CTkLabel(form, text="Description", font=("Arial", 12, "bold"), text_color="#374151").grid(row=2, column=0, sticky="w", pady=(10, 5))
-        self.txt_desc = ctk.CTkTextbox(form, height=60, width=620, border_color="#E5E7EB", border_width=1, fg_color="white", text_color="black")
-        self.txt_desc.grid(row=3, column=0, columnspan=2, sticky="w")
+        ctk.CTkLabel(form, text="Course Type", font=("Arial", 12, "bold"), text_color="#374151").grid(row=2, column=1, sticky="w", pady=(10, 5)) # Course type label
+        self.combo_type = ctk.CTkComboBox(
+            form, values=["Core", "Elective", "Major Required"], 
+            width=200, height=40, border_color="#E5E7EB", fg_color="white", text_color="black"
+        )
+        self.combo_type.grid(row=3, column=1, sticky="w", padx=(10, 0))
 
-        ctk.CTkLabel(form, text="Prerequisites (codes)", font=("Arial", 12, "bold"), text_color="#374151").grid(row=4, column=0, columnspan=2, sticky="w", pady=(10, 5))
+        ctk.CTkLabel(form, text="Description", font=("Arial", 12, "bold"), text_color="#374151").grid(row=4, column=0, sticky="w", pady=(10, 5)) # Description label
+        self.txt_desc = ctk.CTkTextbox(form, height=60, width=620, border_color="#E5E7EB", border_width=1, fg_color="white", text_color="black")
+        self.txt_desc.grid(row=5, column=0, columnspan=2, sticky="w")
+
+        ctk.CTkLabel(form, text="Prerequisites (codes)", font=("Arial", 12, "bold"), text_color="#374151").grid(row=6, column=0, columnspan=2, sticky="w", pady=(10, 5)) # Prerequisites label
         self.ent_prereq = ctk.CTkEntry(form, placeholder_text="e.g. CS101, MATH101", width=620, height=40, border_color="#E5E7EB")
-        self.ent_prereq.grid(row=5, column=0, columnspan=2, sticky="w")
+        self.ent_prereq.grid(row=7, column=0, columnspan=2, sticky="w")
 
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(fill="x", padx=40, pady=30)
@@ -231,13 +250,14 @@ class CourseDialog(ctk.CTkToplevel):
             self.ent_code.insert(0, data.course_code)
             self.ent_name.insert(0, data.course_name)
             self.ent_credits.insert(0, str(data.credits))
+            if hasattr(data, 'course_type') and data.course_type:
+                self.combo_type.set(data.course_type)
             self.txt_desc.insert("0.0", data.description if data.description else '')
-            self.ent_prereq.insert(0, data.prerequisites_str if hasattr(data, 'prerequisites_str') and data.prerequisites_str else '')
+            self.ent_prereq.insert(0, data.prerequisites_id if hasattr(data, 'prerequisites_id') and data.prerequisites_id else '')
             self.ent_code.configure(state="disabled")
 
         self.lift()
-        self.focus_force()
-        self.after(100, self.grab_set)
+        self.after(100, lambda: [self.focus_force(), self.grab_set()])
 
     def _add_field(self, parent, r, c, label, placeholder, width=300):
         ctk.CTkLabel(parent, text=label, font=("Arial", 12, "bold"), text_color="#374151").grid(row=r*2, column=c, sticky="w", pady=(10, 5))
@@ -252,19 +272,32 @@ class CourseDialog(ctk.CTkToplevel):
             messagebox.showwarning("Input Error", "Credits must be a number", parent=self)
             return
 
-        if self.data:
-            success, msg = self.controller.update_course(
-                self.data.course_id, self.ent_code.get(), self.ent_name.get(),
-                credits, self.txt_desc.get("0.0", "end").strip(), self.ent_prereq.get()
-            )
-        else:
-            success, msg = self.controller.create_course(
-                self.ent_code.get(), self.ent_name.get(), credits, 
-                self.txt_desc.get("0.0", "end").strip(), self.ent_prereq.get()
-            )
+        course_type = self.combo_type.get()
 
-        if success:
-            self.callback()
-            self.destroy()
-        else:
-            messagebox.showerror("Error", msg, parent=self)
+        # Gather data from widgets in the main thread (Thread Safety)
+        code = self.ent_code.get()
+        name = self.ent_name.get()
+        desc = self.txt_desc.get("0.0", "end").strip()
+        prereq = self.ent_prereq.get()
+
+        def _save_task():
+            if self.data:
+                return self.controller.update_course(
+                    self.data.course_id, code, name,
+                    credits, course_type, desc, prereq
+                )
+            else:
+                return self.controller.create_course(
+                    code, name, credits, course_type,
+                    desc, prereq
+                )
+
+        def _on_complete(result):
+            success, msg = result
+            if success:
+                self.callback()
+                self.destroy()
+            else:
+                messagebox.showerror("Error", msg, parent=self)
+
+        run_in_background(_save_task, _on_complete, tk_root=self.winfo_toplevel())

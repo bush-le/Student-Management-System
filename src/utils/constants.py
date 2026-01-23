@@ -12,7 +12,6 @@ class Status(Enum):
     GRADUATED = "GRADUATED"
     DROPPED = "DROPPED"
 
-# Mapping màu sắc giao diện dùng chung
 COLORS = {
     "PRIMARY": "#0F766E",  # Teal đậm
     "SECONDARY": "#2A9D8F",

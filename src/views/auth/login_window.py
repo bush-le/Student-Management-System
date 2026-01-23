@@ -2,6 +2,7 @@ import customtkinter as ctk
 from tkinter import messagebox
 from controllers.auth_controller import AuthController
 from views.auth.forgot_password import ForgotPasswordView
+from utils.threading_helper import run_in_background
 
 class LoginView(ctk.CTkFrame):
     def __init__(self, parent, app):
@@ -14,7 +15,7 @@ class LoginView(ctk.CTkFrame):
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        # Left Panel (Giữ nguyên)
+        # Left Panel (Unchanged)
         self.create_left_panel()
 
         # Right Panel (Main Container)
@@ -29,7 +30,6 @@ class LoginView(ctk.CTkFrame):
         self.left_frame.grid(row=0, column=0, sticky="nswe")
         content_box = ctk.CTkFrame(self.left_frame, fg_color="transparent")
         content_box.place(relx=0.5, rely=0.5, anchor="center")
-        ctk.CTkLabel(content_box, text="🎓", font=("Arial", 64)).pack(pady=(0, 20))
         ctk.CTkLabel(content_box, text="Student\nManagement\nSystems", font=("Arial", 32, "bold"), text_color="white", justify="left").pack(anchor="w")
         ctk.CTkLabel(content_box, text="Manage your academic life, courses,\nand grades in one place.", font=("Arial", 14), text_color="#E0F2F1", justify="left").pack(anchor="w", pady=(20, 0))
 
@@ -74,52 +74,35 @@ class LoginView(ctk.CTkFrame):
             command=self.show_forgot_view 
         ).grid(row=7, column=0, sticky="w", pady=(5, 20))
 
-        ctk.CTkButton(
+        self.login_btn = ctk.CTkButton(
             form, text="Sign In", width=320, height=45,
             fg_color="#2A9D8F", hover_color="#238b7e", font=("Arial", 14, "bold"),
             command=self.on_login_click
-        ).grid(row=8, column=0, sticky="ew")
-
-        # Demo buttons
-        self.create_demo_buttons(form)
+        )
+        self.login_btn.grid(row=8, column=0, sticky="ew")
 
     def show_forgot_view(self):
         """Clears the login form and shows the forgot password view."""
         self.clear_right_panel()
         # Pass the show_login_form callback so the child view can return
-        ForgotPasswordView(self.right_frame, self.auth_controller, self.show_login_form).pack(fill="both", expand=True)
+        ForgotPasswordView(self.right_frame, self.auth_controller, self.show_login_form).pack(fill="both", expand=True) # Forgot password view
 
     # --- LOGIN LOGIC ---
     def on_login_click(self):
         email = self.email_entry.get()
         password = self.pass_entry.get()
         
-        # auth_controller.login trả về (user_obj, message) hoặc (None, message)
-        user, message = self.auth_controller.login(email, password)
-        
-        if user:
-            self.app.show_dashboard(user)
-        else:
-            messagebox.showerror("Login Failed", message)
+        self.login_btn.configure(state="disabled", text="Signing in...")
 
-    def create_demo_buttons(self, parent):
-        demo_frame = ctk.CTkFrame(parent, fg_color="transparent")
-        demo_frame.grid(row=9, column=0, pady=20)
-        ctk.CTkLabel(demo_frame, text="Demo:", text_color="gray", font=("Arial", 10)).pack(side="left")
-        
-        # Student Demo
-        ctk.CTkButton(demo_frame, text="Student", height=25, width=60, fg_color="#E9C46A", text_color="black",
-                     command=lambda: self.fill_login("student@test.com", "Test123!")).pack(side="left", padx=5)
-        
-        # Lecturer Demo
-        ctk.CTkButton(demo_frame, text="Lecturer", height=25, width=60, fg_color="#2A9D8F", text_color="white",
-                     command=lambda: self.fill_login("lecturer@test.com", "Test123!")).pack(side="left", padx=5)
+        def _login_task():
+            return self.auth_controller.login(email, password)
 
-        # Admin Demo
-        ctk.CTkButton(demo_frame, text="Admin", height=25, width=60, fg_color="#E76F51", text_color="white",
-                     command=lambda: self.fill_login("admin@test.com", "Test123!")).pack(side="left", padx=5)
+        def _on_login_complete(result):
+            user, message = result
+            self.login_btn.configure(state="normal", text="Sign In")
+            if user:
+                self.app.show_dashboard(user)
+            else:
+                messagebox.showerror("Login Failed", message)
 
-    def fill_login(self, email, pwd):
-        self.email_entry.delete(0, 'end'); self.email_entry.insert(0, email)
-        self.pass_entry.delete(0, 'end'); self.pass_entry.insert(0, pwd)
-        self.on_login_click()
+        run_in_background(_login_task, _on_login_complete, tk_root=self.winfo_toplevel())

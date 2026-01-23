@@ -2,18 +2,22 @@ from database.repository import BaseRepository
 from models.lecturer import Lecturer
 
 class LecturerRepository(BaseRepository):
-    def get_all(self, page=1, per_page=50):
-        """Get paginated lecturers"""
-        offset = (page - 1) * per_page
+    def get_all(self, page=None, per_page=None):
+        """Get lecturers (optional pagination)"""
         sql = """
             SELECT l.*, u.*, d.dept_name 
             FROM Lecturers l
             JOIN Users u ON l.user_id = u.user_id
             LEFT JOIN Departments d ON l.dept_id = d.dept_id
             ORDER BY l.lecturer_code ASC
-            LIMIT %s OFFSET %s
         """
-        results = self.execute_query(sql, (per_page, offset), fetch_all=True)
+        params = ()
+        if page is not None and per_page is not None:
+            offset = (page - 1) * per_page
+            sql += " LIMIT %s OFFSET %s"
+            params = (per_page, offset)
+            
+        results = self.execute_query(sql, params, fetch_all=True)
         return [Lecturer.from_db_row(row) for row in results]
 
     def get_by_id(self, lecturer_id):
@@ -59,7 +63,7 @@ class LecturerRepository(BaseRepository):
         finally:
             cursor.close()
             conn.close()
-
+    
     def delete(self, lecturer_id):
         res = self.execute_query("SELECT COUNT(*) as count FROM Course_Classes WHERE lecturer_id=%s", (lecturer_id,), fetch_one=True)
         if res['count'] > 0: return False, "Cannot delete: Lecturer assigned to classes."
@@ -74,7 +78,7 @@ class LecturerRepository(BaseRepository):
             return False, str(e)
 
     def get_by_user_id(self, user_id):
-        """Lấy thông tin Lecturer đầy đủ từ User ID"""
+        """Retrieve full Lecturer information from User ID"""
         sql = """
             SELECT l.*, u.*, d.dept_name 
             FROM Lecturers l
@@ -86,7 +90,7 @@ class LecturerRepository(BaseRepository):
         return Lecturer.from_db_row(row) if row else None
 
     def get_schedule_by_lecturer(self, lecturer_id):
-        """Lấy danh sách lớp được phân công cho giảng viên"""
+        """Get list of classes assigned to lecturer"""
         sql = """
             SELECT cc.*, c.course_name, c.course_code,
                    (SELECT COUNT(*) FROM Grades WHERE class_id = cc.class_id) as enrolled_count
@@ -94,12 +98,11 @@ class LecturerRepository(BaseRepository):
             JOIN Courses c ON cc.course_id = c.course_id
             WHERE cc.lecturer_id = %s
         """
-        # Trả về list dict để dễ hiển thị lên bảng
+        # Return list of dicts for easy display in table
         return self.execute_query(sql, (lecturer_id,), fetch_all=True)
 
     def count_all(self):
-        try:
-            # Đếm số user có role là 'Lecturer'
+        try: # Count users with 'Lecturer' role
             result = self.execute_query("SELECT COUNT(*) as total FROM Users WHERE role = 'Lecturer'", fetch_one=True)
             return result['total'] if result else 0
         except Exception as e:

@@ -3,9 +3,9 @@ from models.academic.grade import Grade
 
 class GradeRepository(BaseRepository):
     def get_by_student(self, student_id):
-        """Lấy bảng điểm của 1 sinh viên (kèm thông tin môn học)"""
-        sql = """
-            SELECT g.*, c.course_name, c.credits
+        """Retrieves the transcript of a student (including course information)"""
+        sql = """ # SQL query to get grades for a student
+            SELECT g.*, c.course_name, c.credits, c.course_code
             FROM Grades g
             JOIN Course_Classes cc ON g.class_id = cc.class_id
             JOIN Courses c ON cc.course_id = c.course_id
@@ -15,28 +15,27 @@ class GradeRepository(BaseRepository):
         return [Grade.from_db_row(r) for r in results]
 
     def get_by_class(self, class_id):
-        """Lấy bảng điểm của 1 lớp (cho Giảng viên nhập điểm)"""
-        sql = """
-            SELECT g.*, s.student_code, u.full_name 
+        """Retrieves the grade list for a class (for lecturers to enter grades)"""
+        sql = """ # SQL query to get grades for a specific class
+            SELECT g.*, s.student_code, u.full_name, u.email
             FROM Grades g
             JOIN Students s ON g.student_id = s.student_id
             JOIN Users u ON s.user_id = u.user_id
             WHERE g.class_id = %s
             ORDER BY s.student_code ASC
         """
-        # Lưu ý: Model Grade hiện tại chưa có field student_name/code. 
-        # Bạn có thể mở rộng Model Grade hoặc trả về dict nếu chỉ để hiển thị UI
-        # Ở đây ta trả về list dict cho đơn giản với UI nhập điểm
+        # Note: The current Grade model does not yet have student_name/code fields.
+        # You can extend the Grade Model or return a dict if only for UI display
+        # Here we return a list of dicts for simplicity with the grade entry UI
         return self.execute_query(sql, (class_id,), fetch_all=True)
 
     def update_scores(self, grade_obj):
-        """Cập nhật điểm số"""
-        # Kiểm tra khóa điểm
+        """Updates scores"""
+        # Check grade lock status
         check = self.execute_query("SELECT is_locked FROM Grades WHERE grade_id=%s", (grade_obj.grade_id,), fetch_one=True)
-        if check and check['is_locked']:
+        if check and check['is_locked']: # If grades are locked, return error
             return False, "Grades are locked."
-
-        # Tự động tính toán lại total và letter trước khi lưu
+        # Automatically recalculate total and letter before saving
         grade_obj.calculate_total()
 
         sql = """
@@ -57,19 +56,19 @@ class GradeRepository(BaseRepository):
         except Exception as e: return False, str(e)
 
     def lock_grades(self, class_id):
-        """Khóa điểm toàn bộ lớp"""
+        """Locks grades for the entire class"""
         try:
             self.execute_query("UPDATE Grades SET is_locked=1 WHERE class_id=%s", (class_id,))
             return True, "Grades locked"
         except Exception as e: return False, str(e)
         
     def get_id_by_enrollment(self, student_id, class_id):
-        """Lấy grade_id dựa trên sinh viên và lớp học"""
+        """Retrieves grade_id based on student and class"""
         sql = "SELECT grade_id FROM Grades WHERE student_id = %s AND class_id = %s"
         res = self.execute_query(sql, (student_id, class_id), fetch_one=True)
         return res['grade_id'] if res else None
 
-    # Các method bắt buộc của BaseRepo (nếu không dùng thì để pass hoặc raise)
+    # Required BaseRepo methods (pass or raise if not used)
     def get_all(self): pass
 
     def get_by_id(self, grade_id):

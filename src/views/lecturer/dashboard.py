@@ -5,52 +5,53 @@ import traceback
 
 from controllers.lecturer_controller import LecturerController
 from controllers.auth_controller import AuthController
+from utils.threading_helper import run_in_background
 
-# Import các View con (Đã bỏ ProfileView)
+# Import child Views (ProfileView removed)
 from views.lecturer.schedule import LecturerScheduleFrame
 from views.lecturer.my_class import LecturerClassesFrame
 from views.lecturer.class_manager import LecturerClassManager
 
 class LecturerDashboard(ctk.CTkFrame):
     def __init__(self, parent, app, user):
-        super().__init__(parent, fg_color="#F3F4F6") # Nền xám nhạt
+        super().__init__(parent, fg_color="#F3F4F6") # Light gray background
         self.app = app
         self.user = user
         self.auth_controller = AuthController()
         
         # --- COLOR PALETTE ---
-        self.COLOR_PRIMARY = "#0F766E"      # Teal đậm
-        self.COLOR_ACCENT = "#14B8A6"       # Teal sáng
-        self.COLOR_SIDEBAR = "#FFFFFF"      # Trắng
-        self.COLOR_TEXT_MAIN = "#111827"    # Đen
-        self.COLOR_TEXT_SUB = "#6B7280"     # Xám
+        self.COLOR_PRIMARY = "#0F766E"      # Dark Teal
+        self.COLOR_ACCENT = "#14B8A6"       # Light Teal
+        self.COLOR_SIDEBAR = "#FFFFFF"      # White
+        self.COLOR_TEXT_MAIN = "#111827"    # Black
+        self.COLOR_TEXT_SUB = "#6B7280"     # Gray
         
         self.nav_buttons = {}
         self.user_menu_open = False
+        self.active_view = "home" # Track current active view
         
         try:
             self.controller = LecturerController(user.user_id)
             
-            # --- LOAD REAL DATA ---
+            # Initialize default data
+            self.next_class = None
+            self.stats = {}
+            # --- LOAD REAL DATA (Async) ---
             self.load_dashboard_data()
             
             # --- LAYOUT SETUP ---
             self.grid_columnconfigure(0, weight=0) # Sidebar
             self.grid_columnconfigure(1, weight=1) # Main
             self.grid_rowconfigure(0, weight=1)
-
             # 1. Sidebar
             self.create_sidebar()
-
             # 2. Main Area
             self.main_area = ctk.CTkFrame(self, fg_color="#F3F4F6", corner_radius=0)
             self.main_area.grid(row=0, column=1, sticky="nswe")
             self.main_area.grid_rowconfigure(1, weight=1)
             self.main_area.grid_columnconfigure(0, weight=1)
-
             # 2.1 Header
             self.create_header()
-
             # 2.2 Content Scroll
             self.content_scroll = ctk.CTkScrollableFrame(self.main_area, fg_color="transparent")
             self.content_scroll.grid(row=1, column=0, sticky="nswe", padx=30, pady=(10, 30))
@@ -62,18 +63,36 @@ class LecturerDashboard(ctk.CTkFrame):
             self.show_home()
 
         except Exception as e:
-            print("❌ LỖI KHỞI TẠO DASHBOARD GIẢNG VIÊN:")
+            print("❌ LECTURER DASHBOARD INITIALIZATION ERROR:")
             traceback.print_exc()
 
     def load_dashboard_data(self):
-        """Lấy dữ liệu từ DB thông qua Controller"""
+        """Fetch data from DB via Controller"""
+        run_in_background(
+            self._fetch_data,
+            self._on_data_loaded,
+            tk_root=self.winfo_toplevel()
+        )
+
+    def _fetch_data(self):
         try:
-            self.next_class = self.controller.get_upcoming_teaching_class() 
-            self.stats = self.controller.get_teaching_stats() 
+            # OPTIMIZATION: Use combined method to reduce DB calls
+            upcoming, stats = self.controller.get_dashboard_summary()
+            return {
+                'next_class': upcoming,
+                'stats': stats
+            }
         except Exception as e:
-            print(f"⚠️ Không tải được dữ liệu dashboard: {e}")
-            self.next_class = None
-            self.stats = {}
+            return None
+
+    def _on_data_loaded(self, data):
+        if not self.winfo_exists(): return
+        if data:
+            self.next_class = data.get('next_class')
+            self.stats = data.get('stats', {})
+            # Refresh Home UI if currently displayed
+            if self.active_view == "home":
+                self.show_home()
 
     # =========================================================================
     # 1. SIDEBAR (NO PROFILE BUTTON)
@@ -93,10 +112,10 @@ class LecturerDashboard(ctk.CTkFrame):
         # Menu
         ctk.CTkLabel(sidebar, text="MAIN MENU", font=("Arial", 11, "bold"), text_color="#9CA3AF").grid(row=1, column=0, sticky="w", padx=30, pady=(20, 10))
 
-        self._sidebar_btn(sidebar, 2, "Dashboard", "home", self.show_home)
+        self._sidebar_btn(sidebar, 2, "Dashboard", "home", self.refresh_home)
         self._sidebar_btn(sidebar, 3, "Teaching Schedule", "schedule", self.show_schedule)
-        self._sidebar_btn(sidebar, 4, "Manage Classes", "classes", self.show_classes)
-        # Đã xóa nút Profile ở đây
+        self._sidebar_btn(sidebar, 4, "Manage Classes", "classes", self.show_my_classes)
+        # Profile button removed here
 
         # Footer User Info
         footer = ctk.CTkFrame(sidebar, fg_color="#F0FDFA", corner_radius=0, height=60)
@@ -153,15 +172,21 @@ class LecturerDashboard(ctk.CTkFrame):
     # =========================================================================
     # 3. HOME CONTENT
     # =========================================================================
+    def refresh_home(self):
+        """Refreshes data and shows home view"""
+        self.show_home()
+        self.load_dashboard_data()
+
     def show_home(self):
         self.show_home_view()
 
     def show_home_view(self):
         self.clear_content()
         self.set_active_nav("home")
+        self.active_view = "home"
         self.page_title.configure(text="Lecturer Dashboard")
         
-        # Layout cân bằng 1:1
+        # Balanced 1:1 Layout
         self.content_scroll.grid_columnconfigure(0, weight=1)
         self.content_scroll.grid_columnconfigure(1, weight=1)
 
@@ -185,16 +210,19 @@ class LecturerDashboard(ctk.CTkFrame):
         inner = ctk.CTkFrame(card, fg_color="transparent")
         inner.pack(fill="x", padx=25, pady=20)
         
-        ctk.CTkLabel(inner, text="NEXT TEACHING SESSION", font=("Arial", 10, "bold"), text_color="#CCFBF1").pack(anchor="w")
-        
         if self.next_class:
+            status_txt = self.next_class.get('ui_status', 'NEXT TEACHING SESSION')
+            status_col = self.next_class.get('ui_color', '#CCFBF1')
+            ctk.CTkLabel(inner, text=status_txt, font=("Arial", 10, "bold"), text_color=status_col).pack(anchor="w")
+
             c_name = self.next_class.get('course_name', 'Unknown')
             c_room = self.next_class.get('room', 'TBA')
-            c_time = self.next_class.get('time', 'TBA')
+            c_time = self.next_class.get('schedule', 'TBA')
             
             ctk.CTkLabel(inner, text=c_name, font=("Arial", 22, "bold"), text_color="white").pack(anchor="w", pady=(5, 0))
             ctk.CTkLabel(inner, text=f"Room: {c_room}  |  Time: {c_time}", font=("Arial", 13), text_color="#99F6E4").pack(anchor="w", pady=(5, 0))
         else:
+            ctk.CTkLabel(inner, text="NEXT TEACHING SESSION", font=("Arial", 10, "bold"), text_color="#CCFBF1").pack(anchor="w")
             ctk.CTkLabel(inner, text="No classes scheduled for today.", font=("Arial", 18, "bold"), text_color="white").pack(anchor="w", pady=(10, 0))
             ctk.CTkLabel(inner, text="Have a great day!", font=("Arial", 12), text_color="#99F6E4").pack(anchor="w")
 
@@ -227,8 +255,8 @@ class LecturerDashboard(ctk.CTkFrame):
 
         ctk.CTkLabel(inner, text="Quick Actions", font=("Arial", 14, "bold"), text_color="#333").pack(anchor="w", pady=(0, 15))
         
-        # Đã xóa nút Update Profile
-        self._action_btn(inner, "Grade Assignments", lambda: [self.set_active_nav("classes"), self.show_classes()])
+        # Update Profile button removed
+        self._action_btn(inner, "Grade Assignments", lambda: [self.set_active_nav("classes"), self.show_my_classes()])
         self._action_btn(inner, "Check Schedule", lambda: [self.set_active_nav("schedule"), self.show_schedule()])
 
     def _action_btn(self, parent, txt, cmd):
@@ -253,8 +281,7 @@ class LecturerDashboard(ctk.CTkFrame):
         ctk.CTkLabel(h, text=getattr(self.user, 'email', ''), font=("Arial", 12, "bold"), text_color="#333").pack(anchor="w")
         
         ctk.CTkFrame(self.user_menu, height=1, fg_color="#F3F4F6").pack(fill="x", pady=5)
-        
-        # Đã xóa nút My Profile
+        # My Profile button removed
         self._menu_btn("Change Password", self.open_change_password)
         
         ctk.CTkFrame(self.user_menu, height=1, fg_color="#F3F4F6").pack(fill="x", pady=5)
@@ -275,7 +302,62 @@ class LecturerDashboard(ctk.CTkFrame):
             self.user_menu.lift()
 
     def open_change_password(self):
-        messagebox.showinfo("Info", "Change Password Feature")
+        if self.user_menu.winfo_ismapped(): self.user_menu.place_forget()
+        
+        root = self.winfo_toplevel()
+        popup = ctk.CTkToplevel(root)
+        popup.title("Change Password")
+        popup.geometry("400x480")
+        popup.resizable(False, False)
+        popup.configure(fg_color="white")
+        
+        bg = ctk.CTkFrame(popup, fg_color="white", corner_radius=0)
+        bg.pack(fill="both", expand=True)
+        popup.transient(root)
+        
+        # Center popup
+        popup.update_idletasks()
+        x = (self.winfo_screenwidth() // 2) - 200
+        y = (self.winfo_screenheight() // 2) - 240
+        popup.geometry(f"+{x}+{y}")
+        
+        ctk.CTkLabel(bg, text="Change Password", font=("Arial", 22, "bold"), text_color="#111827").pack(pady=(30, 20))
+        
+        popup.curr = self._create_popup_input(bg, "Current Password")
+        popup.new = self._create_popup_input(bg, "New Password")
+        popup.conf = self._create_popup_input(bg, "Confirm New Password")
+        
+        ctk.CTkButton(bg, text="Update Password", fg_color=self.COLOR_PRIMARY, height=45, font=("Arial", 14, "bold"), 
+                      command=lambda: self.handle_popup_submit(popup)).pack(pady=30, padx=40, fill="x")
+        
+        popup.lift()
+        popup.focus_force()
+        popup.grab_set()
+
+    def _create_popup_input(self, parent, label): # Helper for popup
+        ctk.CTkLabel(parent, text=label, font=("Arial", 12, "bold"), text_color="gray").pack(anchor="w", padx=40, pady=(10, 5))
+        entry = ctk.CTkEntry(parent, show="•", height=40, border_color="#E5E7EB", fg_color="#F9FAFB", text_color="black")
+        entry.pack(padx=40, fill="x")
+        return entry
+    
+    def handle_popup_submit(self, popup):
+        curr, new_p, conf_p = popup.curr.get(), popup.new.get(), popup.conf.get()
+        if not curr or not new_p: 
+            messagebox.showerror("Error", "Empty fields", parent=popup); return
+        if new_p != conf_p: 
+            messagebox.showerror("Error", "Mismatch", parent=popup); return
+            
+        # Run password change in background
+        def _change_pw():
+            return self.auth_controller.change_password(self.user.user_id, curr, new_p)
+            
+        def _on_done(result):
+            if not popup.winfo_exists(): return
+            success, msg = result
+            if success: messagebox.showinfo("Success", msg, parent=popup); popup.destroy()
+            else: messagebox.showerror("Error", msg, parent=popup)
+            
+        run_in_background(_change_pw, _on_done, tk_root=self.winfo_toplevel())
 
     # =========================================================================
     # 5. NAVIGATION
@@ -287,25 +369,33 @@ class LecturerDashboard(ctk.CTkFrame):
     def show_schedule(self):
         self.clear_content()
         self.set_active_nav("schedule")
+        self.active_view = "schedule"
         self.page_title.configure(text="Teaching Schedule")
         self.content_scroll.grid_columnconfigure(0, weight=1)
         self.content_scroll.grid_columnconfigure(1, weight=0)
-        LecturerScheduleFrame(self.content_scroll, self.user.user_id).pack(fill="both", expand=True)
-
-    def show_classes(self):
-        self.clear_content()
-        self.set_active_nav("classes")
-        self.page_title.configure(text="Class Management")
-        self.content_scroll.grid_columnconfigure(0, weight=1)
-        self.content_scroll.grid_columnconfigure(1, weight=0)
-        LecturerClassesFrame(self.content_scroll, self, self.user.user_id).pack(fill="both", expand=True)
-
-    def open_class_manager(self, class_data):
-        self.clear_content()
-        self.content_scroll.grid_columnconfigure(0, weight=1)
-        self.content_scroll.grid_columnconfigure(1, weight=0)
-        LecturerClassManager(self.content_scroll, self.user.user_id, class_data, on_back_callback=self.show_my_classes).pack(fill="both", expand=True)
+        LecturerScheduleFrame(self.content_scroll, self.controller).pack(fill="both", expand=True)
 
     def show_my_classes(self):
-        # Alias để nút Back hoạt động đúng
-        self.show_classes()
+        """Display class list (View 1)"""
+        self.clear_content()
+        self.set_active_nav("classes")
+        self.active_view = "classes"
+        self.page_title.configure(text="Class Management")
+        
+        # Grid configuration
+        self.content_scroll.grid_columnconfigure(0, weight=1)
+        self.content_scroll.grid_columnconfigure(1, weight=0)
+        
+        # Pass self (dashboard) so child Frame can call back
+        LecturerClassesFrame(self.content_scroll, self, self.controller).pack(fill="both", expand=True)
+
+    def open_class_manager(self, class_data):
+        """Display detailed class management interface (View 2). This function is called from LecturerClassesFrame."""
+        self.clear_content()
+        self.active_view = "class_manager"
+        # Reset Grid for full-screen management view
+        self.content_scroll.grid_columnconfigure(0, weight=1)
+        self.content_scroll.grid_columnconfigure(1, weight=0)
+        # Initialize Class Manager
+        # on_back_callback=self.show_my_classes: So the Back button returns to the class list
+        LecturerClassManager(self.content_scroll, self.controller, class_data, on_back_callback=self.show_my_classes).pack(fill="both", expand=True)

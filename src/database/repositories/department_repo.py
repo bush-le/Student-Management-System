@@ -11,7 +11,6 @@ class DepartmentRepository(BaseRepository):
         row = self.execute_query(sql, (dept_id,), fetch_one=True)
         return Department.from_db_row(row) if row else None
 
-    # Nếu Admin cần quản lý Khoa (Thêm/Sửa/Xóa Khoa) thì thêm add/update/delete vào đây
     def add(self, dept):
         pass # Implement if needed
     def update(self, dept):

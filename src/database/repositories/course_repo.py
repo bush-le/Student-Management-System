@@ -6,7 +6,7 @@ class CourseRepository(BaseRepository):
         sql = "SELECT * FROM Courses ORDER BY course_code ASC"
         params = ()
         
-        # Nếu có phân trang thì thêm LIMIT OFFSET
+        # Add LIMIT OFFSET if pagination is enabled
         if page is not None and per_page is not None:
             offset = (page - 1) * per_page
             sql += " LIMIT %s OFFSET %s"
@@ -24,7 +24,7 @@ class CourseRepository(BaseRepository):
         count = self.execute_query("SELECT COUNT(*) as c FROM Courses WHERE course_code = %s", (course.course_code,), fetch_one=True)
         if count['c'] > 0: return False, "Course code exists"
         
-        sql = """INSERT INTO Courses (course_code, course_name, credits, course_type, description, prerequisites_str) 
+        sql = """INSERT INTO Courses (course_code, course_name, credits, course_type, description, prerequisites_id) 
                  VALUES (%s, %s, %s, %s, %s, %s)"""
         try:
             self.execute_query(sql, (
@@ -33,13 +33,13 @@ class CourseRepository(BaseRepository):
                 course.credits, 
                 getattr(course, 'course_type', 'Core'), 
                 course.description, 
-                course.prerequisites_str
+                course.prerequisites_id
             ))
             return True, "Course created"
         except Exception as e: return False, str(e)
 
     def update(self, course):
-        sql = """UPDATE Courses SET course_code=%s, course_name=%s, credits=%s, course_type=%s, description=%s, prerequisites_str=%s 
+        sql = """UPDATE Courses SET course_code=%s, course_name=%s, credits=%s, course_type=%s, description=%s, prerequisites_id=%s 
                  WHERE course_id=%s"""
         try:
             self.execute_query(sql, (
@@ -48,7 +48,7 @@ class CourseRepository(BaseRepository):
                 course.credits, 
                 getattr(course, 'course_type', 'Core'), 
                 course.description, 
-                course.prerequisites_str, 
+                course.prerequisites_id, 
                 course.course_id
             ))
             return True, "Course updated"

@@ -5,6 +5,10 @@ class AnnouncementRepository(BaseRepository):
     def get_all(self):
         return [Announcement.from_db_row(r) for r in self.execute_query("SELECT * FROM Announcements ORDER BY created_date DESC", fetch_all=True)]
 
+    def get_recent(self, limit=3):
+        sql = "SELECT * FROM Announcements ORDER BY created_date DESC LIMIT %s"
+        return [Announcement.from_db_row(r) for r in self.execute_query(sql, (limit,), fetch_all=True)]
+
     def get_by_id(self, ann_id):
         sql = "SELECT * FROM Announcements WHERE announcement_id = %s"
         row = self.execute_query(sql, (ann_id,), fetch_one=True)

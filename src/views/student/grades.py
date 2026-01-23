@@ -3,134 +3,171 @@ from controllers.student_controller import StudentController
 
 class GradesFrame(ctk.CTkFrame):
     def __init__(self, parent, user_id):
-        super().__init__(parent, fg_color="white")
+        super().__init__(parent, fg_color="transparent")
         self.controller = StudentController(user_id)
-
-        # --- 1. HEADER (Giảm padding) ---
-        header_lbl = ctk.CTkLabel(
-            self, 
-            text="MY GRADES & ACADEMIC RESULTS", 
-            font=("Arial", 14, "bold"), 
-            text_color="#2A9D8F"
-        )
-        # Giảm pady từ (20,15) xuống (20, 10)
-        header_lbl.pack(anchor="w", pady=(20, 10), padx=30)
-
-        # --- 2. SUMMARY CARD ---
-        self.create_summary_card()
-
-        # --- 3. GRADES TABLE ---
-        self.create_grades_table()
-
-    def create_summary_card(self):
-        # Lấy dữ liệu GPA từ Controller
-        data = self.controller.view_grades() # Trả về {'transcript': [], 'cumulative_gpa': 3.5}
-        gpa_val = data.get('cumulative_gpa', 0.0)
-
-        # Giảm ipady từ 15 xuống 10 để card mỏng hơn
-        card = ctk.CTkFrame(self, fg_color="#F0F9FF", corner_radius=6)
-        card.pack(fill="x", padx=30, pady=(0, 20), ipady=10)
-
-        # Left Info
-        info_frame = ctk.CTkFrame(card, fg_color="transparent")
-        info_frame.pack(side="left", padx=20)
-
-        # GPA Row
-        gpa_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
-        gpa_frame.pack(anchor="w")
-        ctk.CTkLabel(gpa_frame, text="Cumulative GPA:", font=("Arial", 14, "bold"), text_color="#333").pack(side="left")
-        ctk.CTkLabel(gpa_frame, text=f"{gpa_val:.2f}", font=("Arial", 18, "bold"), text_color="#2563EB").pack(side="left", padx=5)
-
-        # Class Row
-        class_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
-        class_frame.pack(anchor="w", pady=(2, 0))
-        ctk.CTkLabel(class_frame, text="Classification:", font=("Arial", 12), text_color="gray").pack(side="left")
-        ctk.CTkLabel(class_frame, text="Excellent", font=("Arial", 12, "bold"), text_color="#16A34A").pack(side="left", padx=5)
-
-        # Right Filter
-        filter_frame = ctk.CTkFrame(card, fg_color="transparent")
-        filter_frame.pack(side="right", padx=20)
-        ctk.CTkLabel(filter_frame, text="FILTER BY SEMESTER", font=("Arial", 9, "bold"), text_color="gray").pack(anchor="w", pady=(0, 2))
         
+        # --- CẤU HÌNH GIAO DIỆN ---
+        self.COLOR_PRIMARY = "#0F766E"
+        self.COLOR_TEXT = "#333333"
+        self.COLOR_PASS = "#16A34A"  # Xanh lá
+        self.COLOR_FAIL = "#DC2626"  # Đỏ
+
+        # Cấu hình độ rộng cột (Tổng ~900px)
+        # [Code, Course Name, Credits, Midterm, Final, Total, Status]
+        self.col_widths = [80, 300, 80, 100, 100, 100, 100]
+
+        # --- LOAD DATA ---
+        self.load_data()
+
+        # --- UI LAYOUT ---
+        # 1. Header & Stats
+        self.create_header_stats()
+
+        # 2. Filter Toolbar
+        self.create_toolbar()
+
+        # 3. Table Header
+        self.create_table_header()
+
+        # 4. Grades List (Scrollable)
+        self.scroll_area = ctk.CTkScrollableFrame(self, fg_color="white", corner_radius=10)
+        self.scroll_area.pack(fill="both", expand=True, pady=(0, 20))
+
+        # 5. Render Rows
+        self.render_table()
+
+    def load_data(self):
+        try:
+            # Lấy dữ liệu từ DB
+            data = self.controller.view_grades()
+            self.transcript = data.get('transcript', [])
+            self.gpa = data.get('cumulative_gpa', 0.0)
+            
+            # Tính tổng tín chỉ tích lũy (Chỉ tính môn đã đậu, ví dụ điểm >= 4.0)
+            self.total_credits = sum(
+                g.credits for g in self.transcript 
+                if g.total is not None and g.total >= 4.0
+            )
+        except Exception as e:
+            print(f"Error loading grades: {e}")
+            self.transcript = []
+            self.gpa = 0.0
+            self.total_credits = 0
+
+    def create_header_stats(self):
+        # Container cho Stats
+        stats_frame = ctk.CTkFrame(self, fg_color="transparent")
+        stats_frame.pack(fill="x", pady=(10, 20))
+
+        # 1. GPA Card
+        self._create_stat_card(stats_frame, "Cumulative GPA", f"{self.gpa:.2f}", "#EFF6FF", "#2563EB", side="left")
+        
+        # 2. Credits Card
+        self._create_stat_card(stats_frame, "Credits Earned", str(self.total_credits), "#F0FDF4", "#16A34A", side="left")
+        
+        # 3. Status Card (Dựa trên GPA)
+        status_text = "Good Standing" if self.gpa >= 2.0 else "Warning"
+        status_color = "#16A34A" if self.gpa >= 2.0 else "#DC2626"
+        bg_color = "#F0FDF4" if self.gpa >= 2.0 else "#FEF2F2"
+        self._create_stat_card(stats_frame, "Academic Status", status_text, bg_color, status_color, side="left")
+
+    def _create_stat_card(self, parent, title, value, bg, color, side):
+        card = ctk.CTkFrame(parent, fg_color="white", corner_radius=8)
+        card.pack(side=side, fill="y", padx=(0, 15), ipadx=10, ipady=5)
+        
+        # Icon/Color bar bên trái
+        bar = ctk.CTkFrame(card, width=4, fg_color=color, height=40)
+        bar.pack(side="left", padx=(10, 10), pady=10)
+        
+        content = ctk.CTkFrame(card, fg_color="transparent")
+        content.pack(side="left", pady=10, padx=(0, 20))
+        
+        ctk.CTkLabel(content, text=title, font=("Arial", 11, "bold"), text_color="gray").pack(anchor="w")
+        ctk.CTkLabel(content, text=value, font=("Arial", 18, "bold"), text_color="#333").pack(anchor="w")
+
+    def create_toolbar(self):
+        toolbar = ctk.CTkFrame(self, fg_color="transparent", height=40)
+        toolbar.pack(fill="x", pady=(0, 10))
+        
+        ctk.CTkLabel(toolbar, text="Grade History", font=("Arial", 16, "bold"), text_color="#333").pack(side="left")
+
+        # Filter Dropdown
         self.semester_cb = ctk.CTkComboBox(
-            filter_frame, 
-            values=["All Semesters"],
-            width=150, height=32,
-            fg_color="white", text_color="#333",
-            button_color="white", button_hover_color="#F3F4F6",
-            border_color="#E5E7EB", dropdown_fg_color="white", dropdown_text_color="#333",
-            state="readonly"  # <--- THÊM DÒNG NÀY ĐỂ CỐ ĐỊNH (KHÔNG CHO NHẬP TAY)
+            toolbar, values=["All Semesters", "Fall 2024", "Spring 2025"],
+            width=160, height=35, border_color="#E5E7EB", 
+            fg_color="white", text_color="#333", state="readonly"
         )
         self.semester_cb.set("All Semesters")
-        self.semester_cb.pack()
+        self.semester_cb.pack(side="right")
+        ctk.CTkLabel(toolbar, text="Filter:", font=("Arial", 12, "bold"), text_color="gray").pack(side="right", padx=10)
 
-    def create_grades_table(self):
-        # Container chính
-        self.table_container = ctk.CTkFrame(self, fg_color="white")
-        self.table_container.pack(fill="both", expand=True, padx=30)
+    def create_table_header(self):
+        h_frame = ctk.CTkFrame(self, fg_color="#E5E7EB", height=45, corner_radius=5)
+        h_frame.pack(fill="x", pady=(0, 5))
         
-        # Cấu hình cột: Cột Tên môn (0) rộng gấp 3 lần các cột điểm
-        cols = [3, 1, 1, 1, 1, 1]
-        for i, w in enumerate(cols):
-            self.table_container.grid_columnconfigure(i, weight=w)
-
-        # --- HEADERS ---
-        head_titles = ["COURSE NAME", "ATTENDANCE", "ASSIGNMENTS", "MIDTERM", "FINAL EXAM", "FINAL GRADE"]
-        for i, title in enumerate(head_titles):
-            # Căn lề trái cho tên môn, căn giữa cho điểm
-            sticky = "w" if i == 0 else "ew"
+        cols = ["CODE", "COURSE NAME", "CREDITS", "MIDTERM", "FINAL", "TOTAL", "STATUS"]
+        
+        for i, text in enumerate(cols):
             ctk.CTkLabel(
-                self.table_container, 
-                text=title, 
-                font=("Arial", 10, "bold"), 
-                text_color="#9CA3AF"
-            ).grid(row=0, column=i, sticky=sticky, pady=(0, 5), padx=5) # Giảm pady header
+                h_frame, text=text, font=("Arial", 11, "bold"), 
+                text_color="#374151", anchor="w",
+                width=self.col_widths[i] # Fixed Width
+            ).grid(row=0, column=i, sticky="ew", padx=5, pady=10)
 
-        # Đường kẻ dưới header
-        ctk.CTkFrame(self.table_container, height=1, fg_color="#F3F4F6").grid(row=1, column=0, columnspan=6, sticky="ew", pady=(0, 5))
-
-        # 1. Gọi Controller
-        data = self.controller.view_grades() 
-        # data trả về: {'transcript': [Grade Objects], 'cumulative_gpa': float}
+    def render_table(self):
+        # Xóa cũ
+        for w in self.scroll_area.winfo_children(): w.destroy()
         
-        transcript = data.get('transcript', [])
+        if not self.transcript:
+            ctk.CTkLabel(self.scroll_area, text="No grade records found.", text_color="gray", font=("Arial", 12)).pack(pady=30)
+            return
+
+        for idx, grade in enumerate(self.transcript):
+            self.create_row(grade, idx)
+
+    def create_row(self, grade, idx):
+        bg_color = "white" if idx % 2 == 0 else "#F9FAFB"
+        row = ctk.CTkFrame(self.scroll_area, fg_color=bg_color, corner_radius=0, height=45)
+        row.pack(fill="x")
         
-        if not transcript:
-             ctk.CTkLabel(self.table_container, text="No grades available.", text_color="gray").grid(row=2, column=0, columnspan=6, pady=20)
-             return
+        # Helper format
+        def fmt(v): return str(v) if v is not None else "-"
+        
+        # 1. Course Code (Giả sử bạn có trường này, nếu không thì để trống)
+        # Nếu model grade chưa có course_code, bạn cần join bảng ở Repo. Tạm thời hiển thị placeholder.
+        code = getattr(grade, 'course_code', '---') 
+        ctk.CTkLabel(row, text=code, font=("Arial", 12, "bold"), text_color="#333", anchor="w", width=self.col_widths[0]).grid(row=0, column=0, padx=5, pady=10)
+        
+        # 2. Name
+        name = grade.course_name if grade.course_name else "Unknown Course"
+        ctk.CTkLabel(row, text=name, font=("Arial", 12), text_color="#333", anchor="w", width=self.col_widths[1]).grid(row=0, column=1, padx=5)
+        
+        # 3. Credits
+        cred = str(getattr(grade, 'credits', 3)) # Default 3 nếu chưa join
+        ctk.CTkLabel(row, text=cred, font=("Arial", 12), text_color="#555", anchor="w", width=self.col_widths[2]).grid(row=0, column=2, padx=5)
 
-        # 2. Vẽ các hàng từ dữ liệu thật
-        row_idx = 2
-        for grade in transcript:
-            self._create_row(row_idx, grade)
-            row_idx += 2 # +2 vì có dòng kẻ ngang xen giữa
+        # 4. Midterm
+        ctk.CTkLabel(row, text=fmt(grade.midterm), font=("Arial", 12), text_color="#555", anchor="w", width=self.col_widths[3]).grid(row=0, column=3, padx=5)
+        
+        # 5. Final
+        ctk.CTkLabel(row, text=fmt(grade.final), font=("Arial", 12), text_color="#555", anchor="w", width=self.col_widths[4]).grid(row=0, column=4, padx=5)
+        
+        # 6. Total
+        total_val = grade.total
+        total_str = fmt(total_val)
+        # Highlight điểm cao
+        total_color = self.COLOR_PRIMARY if total_val and total_val >= 8.5 else "#333"
+        ctk.CTkLabel(row, text=total_str, font=("Arial", 12, "bold"), text_color=total_color, anchor="w", width=self.col_widths[5]).grid(row=0, column=5, padx=5)
 
-    def _create_row(self, r, grade_obj):
-        # Pady chung cho hàng -> Giảm xuống 8 để các dòng sát nhau hơn
-        common_pady = 8
-        # Helper format điểm
-        def fmt(val): return str(val) if val is not None else "-"
+        # 7. Status Badge
+        if total_val is not None:
+            status = "PASSED" if total_val >= 4.0 else "FAILED" # Giả định thang 10, >=4 là đậu
+            fg = self.COLOR_PASS if total_val >= 4.0 else self.COLOR_FAIL
+        else:
+            status = "IN PROGRESS"
+            fg = "gray"
+            
+        ctk.CTkLabel(row, text=status, font=("Arial", 10, "bold"), text_color=fg, anchor="w", width=self.col_widths[6]).grid(row=0, column=6, padx=5)
 
-        # SỬA QUAN TRỌNG: Dùng grade_obj.attribute thay vì dictionary
-        # 0: Name (grade_obj.course_name được map trong Repo)
-        name = grade_obj.course_name if grade_obj.course_name else "Unknown"
-        ctk.CTkLabel(
-            self.table_container, text=name, 
-            font=("Arial", 12, "bold"), text_color="#333"
-        ).grid(row=r, column=0, sticky="w", padx=5, pady=common_pady)
-
-        # Các cột điểm
-        ctk.CTkLabel(self.table_container, text=fmt(grade_obj.attendance_score), font=("Arial", 12), text_color="gray").grid(row=r, column=1, sticky="ew")
-        ctk.CTkLabel(self.table_container, text="-", font=("Arial", 12), text_color="gray").grid(row=r, column=2, sticky="ew") # Assignment
-        ctk.CTkLabel(self.table_container, text=fmt(grade_obj.midterm), font=("Arial", 12), text_color="gray").grid(row=r, column=3, sticky="ew")
-        ctk.CTkLabel(self.table_container, text=fmt(grade_obj.final), font=("Arial", 12), text_color="gray").grid(row=r, column=4, sticky="ew")
-
-        # Tổng kết
-        total = fmt(grade_obj.total)
-        ctk.CTkLabel(
-            self.table_container, text=total, 
-            font=("Arial", 13, "bold"), text_color="#2A9D8F"
-        ).grid(row=r, column=5, sticky="ew")
-
-        # Đường kẻ mờ phân cách các hàng
-        ctk.CTkFrame(self.table_container, height=1, fg_color="#F3F4F6").grid(row=r+1, column=0, columnspan=6, sticky="ew")
+        # Divider
+        ctk.CTkFrame(self.scroll_area, height=1, fg_color="#F3F4F6").pack(fill="x")

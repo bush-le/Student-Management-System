@@ -7,151 +7,204 @@ class ProfileView(ctk.CTkFrame):
         super().__init__(parent, fg_color="transparent")
         self.user = user
         self.controller = StudentController(user.user_id)
-        self.is_editing = False # Trạng thái đang sửa hay không
         
-        # Lưu tham chiếu các ô nhập liệu để lấy dữ liệu sau này
-        self.entries = {} 
+        # State
+        self.is_editing = False
+        self.entries = {}
+        
+        # Màu sắc chủ đạo
+        self.COLOR_PRIMARY = "#0F766E"  # Teal
+        self.COLOR_EDIT = "#F59E0B"     # Amber (Màu nút Save)
+        self.COLOR_BG_READONLY = "#F9FAFB"
+        self.COLOR_BG_EDIT = "#FFFFFF"
 
-        # Container Card
-        self.card = ctk.CTkFrame(self, fg_color="white", corner_radius=15)
+        # --- LOAD DATA MỚI NHẤT TỪ DB ---
+        self.reload_user_data()
+
+        # --- UI LAYOUT ---
+        # Card Container chính
+        self.card = ctk.CTkFrame(self, fg_color="white", corner_radius=12)
         self.card.pack(fill="both", expand=True, padx=0, pady=0)
 
-        # 1. HEADER
+        # 1. Header Section
         self.create_header()
 
-        ctk.CTkFrame(self.card, height=2, fg_color="#F3F4F6").pack(fill="x", padx=30, pady=(0, 20))
+        # Separator
+        ctk.CTkFrame(self.card, height=1, fg_color="#E5E7EB").pack(fill="x", padx=40, pady=(0, 30))
 
-        # 2. DETAILS GRID
-        self.create_details_grid()
+        # 2. Form Grid
+        self.create_form_grid()
+
+    def reload_user_data(self):
+        """Lấy thông tin sinh viên đầy đủ từ DB (bao gồm lớp, khoa, ngày sinh...)"""
+        try:
+            # Controller cần hàm get_student_profile trả về full info
+            # Nếu chưa có, nó sẽ dùng thông tin cơ bản từ self.user
+            full_info = self.controller.get_student_profile() 
+            if full_info:
+                self.student_info = full_info
+            else:
+                # Fallback data nếu DB lỗi
+                self.student_info = {
+                    'full_name': self.user.full_name,
+                    'email': self.user.email,
+                    'phone': getattr(self.user, 'phone', ''),
+                    'student_code': getattr(self.user, 'student_code', '---'),
+                    'dept_name': 'Computer Science', # Placeholder
+                    'class_name': 'SE_K24',         # Placeholder
+                    'dob': '2000-01-01',           # Placeholder
+                    'address': 'Ho Chi Minh City'  # Placeholder
+                }
+        except Exception as e:
+            print(f"Error loading profile: {e}")
+            self.student_info = {}
 
     def create_header(self):
         header = ctk.CTkFrame(self.card, fg_color="transparent")
-        header.pack(fill="x", padx=30, pady=30)
+        header.pack(fill="x", padx=40, pady=40)
 
-        # Avatar
-        avatar = ctk.CTkLabel(header, text="👤", font=("Arial", 45), width=90, height=90, fg_color="#E0F2F1", text_color="#2A9D8F", corner_radius=45)
+        # Avatar Circle (Lấy chữ cái đầu tên)
+        initial = self.user.full_name[0].upper() if self.user.full_name else "U"
+        avatar = ctk.CTkFrame(header, width=80, height=80, corner_radius=40, fg_color="#CCFBF1")
         avatar.pack(side="left")
+        ctk.CTkLabel(avatar, text=initial, font=("Arial", 36, "bold"), text_color="#0F766E").place(relx=0.5, rely=0.5, anchor="center")
 
-        # Info
+        # Info Text
         info = ctk.CTkFrame(header, fg_color="transparent")
-        info.pack(side="left", padx=20)
-        ctk.CTkLabel(info, text=self.user.full_name, font=("Arial", 24, "bold"), text_color="#1F2937").pack(anchor="w")
-        ctk.CTkLabel(info, text=self.user.email, font=("Arial", 14), text_color="#2A9D8F").pack(anchor="w", pady=(2, 8))
+        info.pack(side="left", padx=25)
         
-        # Badges
-        badge_row = ctk.CTkFrame(info, fg_color="transparent")
-        badge_row.pack(anchor="w")
-        self.create_badge(badge_row, "STUDENT", "#F3F4F6", "#4B5563")
-        self.create_badge(badge_row, "SV2024001", "#DBEAFE", "#1E40AF")
+        ctk.CTkLabel(info, text=self.user.full_name, font=("Arial", 26, "bold"), text_color="#111827").pack(anchor="w")
+        
+        # Badges Row
+        badges = ctk.CTkFrame(info, fg_color="transparent")
+        badges.pack(anchor="w", pady=(8, 0))
+        
+        self.create_badge(badges, "STUDENT", "#F3F4F6", "#4B5563")
+        self.create_badge(badges, self.student_info.get('student_code', '---'), "#DBEAFE", "#1E40AF")
 
-        # --- EDIT BUTTON ---
+        # Edit Button (Nổi bật bên phải)
         self.edit_btn = ctk.CTkButton(
-            header, text="✏️ Edit Info", 
-            fg_color="#2A9D8F", hover_color="#238b7e",
-            width=120, height=35,
-            font=("Arial", 12, "bold"),
+            header, text="Edit Profile", 
+            fg_color="white", text_color="#374151", 
+            hover_color="#F3F4F6", border_width=1, border_color="#D1D5DB",
+            width=130, height=40, font=("Arial", 13, "bold"),
             command=self.toggle_edit_mode
         )
-        self.edit_btn.pack(side="right", anchor="n")
+        self.edit_btn.pack(side="right", anchor="c")
 
-    def create_details_grid(self):
+    def create_form_grid(self):
         grid = ctk.CTkFrame(self.card, fg_color="transparent")
-        grid.pack(fill="both", expand=True, padx=30, pady=(0, 30))
+        grid.pack(fill="both", expand=True, padx=40, pady=(0, 40))
+        
         grid.grid_columnconfigure(0, weight=1)
         grid.grid_columnconfigure(1, weight=1)
 
-        # --- CỘT TRÁI (READ-ONLY) ---
+        # --- LEFT COLUMN (Academic - Read Only) ---
         col1 = ctk.CTkFrame(grid, fg_color="transparent")
         col1.grid(row=0, column=0, sticky="nsew", padx=(0, 20))
-        ctk.CTkLabel(col1, text="Academic Information", font=("Arial", 14, "bold"), text_color="#111827").pack(anchor="w", pady=(0, 15))
         
-        # Các trường này KHÔNG BAO GIỜ được sửa
-        self.create_field(col1, "DEPARTMENT", "Computer Science", is_editable=False)
-        self.create_field(col1, "CLASS", "SE_K24_01", is_editable=False)
-        self.create_field(col1, "ENROLLMENT STATUS", "Active", is_editable=False)
+        ctk.CTkLabel(col1, text="Academic Details", font=("Arial", 16, "bold"), text_color="#111827").pack(anchor="w", pady=(0, 20))
+        
+        self.create_field(col1, "DEPARTMENT", self.student_info.get('dept_name', 'N/A'))
+        self.create_field(col1, "CLASS", self.student_info.get('class_name', 'N/A'))
+        self.create_field(col1, "ENROLLMENT STATUS", "Active", text_color="#059669") # Xanh lá
 
-        # --- CỘT PHẢI (EDITABLE) ---
+        # --- RIGHT COLUMN (Personal - Editable) ---
         col2 = ctk.CTkFrame(grid, fg_color="transparent")
         col2.grid(row=0, column=1, sticky="nsew", padx=(20, 0))
-        ctk.CTkLabel(col2, text="Contact Details", font=("Arial", 14, "bold"), text_color="#111827").pack(anchor="w", pady=(0, 15))
-
-        # Các trường này ĐƯỢC PHÉP sửa
-        # Lưu ý: Lấy dữ liệu từ self.user (cần đảm bảo model User có các field này)
-        # Giả sử address và dob chưa có trong object user, ta dùng text mẫu
-        user_dob = getattr(self.user, 'dob', '2002-05-15')
-        user_addr = getattr(self.user, 'address', '123 Vo Van Ngan, Thu Duc')
-
-        self.create_field(col2, "DATE OF BIRTH", str(user_dob), is_editable=False) # Ngày sinh thường không cho sửa tự do
         
-        # Ba trường quan trọng cần sửa:
-        self.create_field(col2, "EMAIL ADDRESS", self.user.email, field_key="email", is_editable=True)
-        self.create_field(col2, "PHONE NUMBER", self.user.phone, field_key="phone", is_editable=True)
-        self.create_field(col2, "ADDRESS", str(user_addr), field_key="address", is_editable=True)
+        ctk.CTkLabel(col2, text="Personal Information", font=("Arial", 16, "bold"), text_color="#111827").pack(anchor="w", pady=(0, 20))
 
-    def create_field(self, parent, label, value, field_key=None, is_editable=False):
-        ctk.CTkLabel(parent, text=label, font=("Arial", 11, "bold"), text_color="#6B7280").pack(anchor="w", pady=(10, 5))
+        # Các trường sửa được -> Gán key
+        self.create_field(col2, "DATE OF BIRTH", self.student_info.get('dob', ''), key="dob", editable=True)
+        self.create_field(col2, "EMAIL ADDRESS", self.student_info.get('email', ''), key="email", editable=True)
+        self.create_field(col2, "PHONE NUMBER", self.student_info.get('phone', ''), key="phone", editable=True)
+        self.create_field(col2, "CURRENT ADDRESS", self.student_info.get('address', ''), key="address", editable=True)
+
+    def create_field(self, parent, label, value, text_color="#1F2937", key=None, editable=False):
+        # Label
+        ctk.CTkLabel(parent, text=label, font=("Arial", 11, "bold"), text_color="#6B7280").pack(anchor="w", pady=(0, 6))
         
+        # Entry (Input Box)
         entry = ctk.CTkEntry(
-            parent, height=45, 
-            fg_color="#F9FAFB", border_color="#E5E7EB", 
-            text_color="#111827", font=("Arial", 13),
-            state="normal" # Mặc định normal để insert text
+            parent, height=42, 
+            fg_color=self.COLOR_BG_READONLY, 
+            border_color="#E5E7EB", border_width=1,
+            text_color=text_color, font=("Arial", 13)
         )
         entry.insert(0, str(value) if value else "")
-        entry.configure(state="disabled") # Sau đó disable ngay
-        entry.pack(fill="x")
+        entry.configure(state="disabled") # Mặc định khóa
+        entry.pack(fill="x", pady=(0, 15))
 
-        # Nếu là trường có thể sửa, lưu tham chiếu lại để dùng sau
-        if is_editable and field_key:
-            self.entries[field_key] = entry
+        # Lưu tham chiếu nếu là trường sửa được
+        if editable and key:
+            self.entries[key] = entry
 
-    def create_badge(self, parent, text, bg_col, text_col):
-        badge = ctk.CTkLabel(parent, text=text, fg_color=bg_col, text_color=text_col, font=("Arial", 10, "bold"), corner_radius=6, padx=10, pady=2)
-        badge.pack(side="left", padx=(0, 10))
+    def create_badge(self, parent, text, bg, fg):
+        lbl = ctk.CTkLabel(
+            parent, text=text, 
+            fg_color=bg, text_color=fg, 
+            font=("Arial", 10, "bold"), 
+            corner_radius=6, height=24
+        )
+        lbl.pack(side="left", padx=(0, 8), ipadx=8)
 
-    # --- LOGIC XỬ LÝ EDIT/SAVE ---
+    # --- LOGIC ---
     def toggle_edit_mode(self):
         if not self.is_editing:
-            # BẬT CHẾ ĐỘ SỬA
+            # START EDITING
             self.is_editing = True
-            self.edit_btn.configure(text="💾 Save Changes", fg_color="#E76F51", hover_color="#D65A3F") # Đổi màu cam
+            self.edit_btn.configure(
+                text="Save Changes", 
+                fg_color=self.COLOR_PRIMARY, text_color="white",
+                hover_color="#115E59", border_width=0
+            )
             
-            # Mở khóa các ô nhập liệu được phép sửa
-            for key, entry in self.entries.items():
-                entry.configure(state="normal", border_color="#2A9D8F", fg_color="white")
-                if key == "email": entry.focus() # Focus vào ô đầu tiên
+            # Unlock fields
+            for key, ent in self.entries.items():
+                ent.configure(state="normal", fg_color="white", border_color="#2A9D8F")
+                if key == "email": ent.focus()
         else:
-            # LƯU THAY ĐỔI
-            self.save_changes()
+            # SAVE CHANGES
+            self.save_data()
 
-    def save_changes(self):
-        # 1. Lấy dữ liệu từ Form
-        new_email = self.entries['email'].get()
-        new_phone = self.entries['phone'].get()
-        new_addr = self.entries['address'].get()
-
-        # 2. Validate cơ bản
-        if not new_email or not new_phone:
-            messagebox.showerror("Error", "Email and Phone cannot be empty!")
+    def save_data(self):
+        # 1. Collect Data
+        updates = {k: v.get().strip() for k, v in self.entries.items()}
+        
+        # 2. Validate
+        if not updates['email'] or not updates['phone']:
+            messagebox.showerror("Error", "Email and Phone are required!")
             return
 
-        # 3. Gọi Controller cập nhật DB
-        success, msg = self.controller.update_contact_info(new_email, new_phone, new_addr)
+        # 3. Call Controller
+        # Hàm update_profile cần được thêm vào StudentController
+        # update_profile(user_id, email, phone, address, dob)
+        success, msg = self.controller.update_student_profile(
+            self.user.user_id, 
+            updates.get('email'),
+            updates.get('phone'),
+            updates.get('address'),
+            updates.get('dob')
+        )
 
         if success:
-            messagebox.showinfo("Success", "Personal information updated successfully!")
+            messagebox.showinfo("Success", "Profile updated successfully!")
             
-            # Cập nhật lại object user trong bộ nhớ để đồng bộ
-            self.user.email = new_email
-            self.user.phone = new_phone
-            # self.user.address = new_addr (Nếu User model có attr này)
-
-            # Tắt chế độ sửa
+            # Reset UI state
             self.is_editing = False
-            self.edit_btn.configure(text="✏️ Edit Info", fg_color="#2A9D8F", hover_color="#238b7e")
+            self.edit_btn.configure(
+                text="Edit Profile", 
+                fg_color="white", text_color="#374151",
+                hover_color="#F3F4F6", border_width=1, border_color="#D1D5DB"
+            )
             
-            # Khóa lại các ô
-            for entry in self.entries.values():
-                entry.configure(state="disabled", border_color="#E5E7EB", fg_color="#F9FAFB")
+            # Lock fields
+            for ent in self.entries.values():
+                ent.configure(state="disabled", fg_color=self.COLOR_BG_READONLY, border_color="#E5E7EB")
+            
+            # (Optional) Update self.user object in session
+            self.user.email = updates.get('email')
+            self.user.phone = updates.get('phone')
         else:
             messagebox.showerror("Update Failed", msg)

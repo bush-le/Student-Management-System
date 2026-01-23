@@ -1,19 +1,27 @@
 from database.repository import BaseRepository
 from models.student import Student
+from utils.cache import cache_result
 
 class StudentRepository(BaseRepository):
-    def get_all(self):
-        # Join bảng để lấy đầy đủ thông tin: User info + Student info + Dept Name
+    def get_all(self, page=1, per_page=50):
+        """Get paginated students with caching"""
+        # Calculate LIMIT and OFFSET
+        offset = (page - 1) * per_page
         sql = """
             SELECT s.*, u.*, d.dept_name 
             FROM Students s
             JOIN Users u ON s.user_id = u.user_id
             LEFT JOIN Departments d ON s.dept_id = d.dept_id
             ORDER BY s.student_code ASC
+            LIMIT %s OFFSET %s
         """
-        results = self.execute_query(sql, fetch_all=True)
+        results = self.execute_query(sql, (per_page, offset), fetch_all=True)
         # Convert list of dicts -> list of Student objects
         return [Student.from_db_row(row) for row in results]
+    
+    def get_all_for_admin(self, page=1, per_page=50):
+        """Optimized method for admin panel with pagination"""
+        return self.get_all(page, per_page)
 
     def get_by_id(self, student_id):
         sql = """

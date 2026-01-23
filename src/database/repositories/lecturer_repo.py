@@ -2,19 +2,22 @@ from database.repository import BaseRepository
 from models.lecturer import Lecturer
 
 class LecturerRepository(BaseRepository):
-    def get_all(self):
+    def get_all(self, page=1, per_page=50):
+        """Get paginated lecturers"""
+        offset = (page - 1) * per_page
         sql = """
             SELECT l.*, u.*, d.dept_name 
             FROM Lecturers l
             JOIN Users u ON l.user_id = u.user_id
             LEFT JOIN Departments d ON l.dept_id = d.dept_id
             ORDER BY l.lecturer_code ASC
+            LIMIT %s OFFSET %s
         """
-        results = self.execute_query(sql, fetch_all=True)
+        results = self.execute_query(sql, (per_page, offset), fetch_all=True)
         return [Lecturer.from_db_row(row) for row in results]
 
     def get_by_id(self, lecturer_id):
-        sql = "SELECT l.*, u.* FROM Lecturers l JOIN Users u ON l.user_id = u.user_id WHERE l.lecturer_id = %s"
+        sql = "SELECT l.*, u.*, d.dept_name FROM Lecturers l JOIN Users u ON l.user_id = u.user_id LEFT JOIN Departments d ON l.dept_id = d.dept_id WHERE l.lecturer_id = %s"
         row = self.execute_query(sql, (lecturer_id,), fetch_one=True)
         return Lecturer.from_db_row(row)
 

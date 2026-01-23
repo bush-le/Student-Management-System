@@ -2,7 +2,7 @@ from database.repository import BaseRepository
 from models.academic.course_class import CourseClass
 
 class ClassRepository(BaseRepository):
-    def get_all_details(self):
+    def get_all_details(self, page=None, per_page=None):
         sql = """
             SELECT cc.*, c.course_name, c.course_code, u.full_name as lecturer_name,
                    (SELECT COUNT(*) FROM Grades WHERE class_id = cc.class_id) as current_enrolled
@@ -12,7 +12,14 @@ class ClassRepository(BaseRepository):
             LEFT JOIN Users u ON l.user_id = u.user_id
             ORDER BY c.course_name ASC
         """
-        return [CourseClass.from_db_row(row) for row in self.execute_query(sql, fetch_all=True)]
+        params = ()
+        if page is not None and per_page is not None:
+            offset = (page - 1) * per_page
+            sql += " LIMIT %s OFFSET %s"
+            params = (per_page, offset)
+            
+        rows = self.execute_query(sql, params, fetch_all=True)
+        return [CourseClass.from_db_row(row) for row in rows]
 
     def get_all(self):
         return self.get_all_details()
@@ -73,7 +80,7 @@ class ClassRepository(BaseRepository):
 
     def count_all(self):
         try:
-            result = self.execute_query("SELECT COUNT(*) as total FROM Classes", fetch_one=True)
+            result = self.execute_query("SELECT COUNT(*) as total FROM Course_Classes", fetch_one=True)
             return result['total'] if result else 0
         except Exception as e:
             print(f"Error counting classes: {e}")

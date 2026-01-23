@@ -1,37 +1,49 @@
 import customtkinter as ctk
 from tkinter import messagebox
 from controllers.admin_controller import AdminController
+from utils.threading_helper import run_in_background
+from utils.pagination import PaginationHelper
 
 class LecturersFrame(ctk.CTkFrame):
     def __init__(self, parent, user_id):
-        super().__init__(parent, fg_color="transparent") # Nền trong suốt
+        super().__init__(parent, fg_color="transparent")
         self.controller = AdminController(user_id)
         
-        # 1. Toolbar (Search + Add)
+        # Cấu hình phân trang
+        self.current_page = 1
+        self.per_page = 5
+        self.total_pages = 1
+        self.total_items = 0
+        
+        # --- CẤU HÌNH ĐỘ RỘNG CỐ ĐỊNH (PIXEL) ---
+        self.col_widths = [80, 200, 200, 120, 150, 100, 120]
+
+        # 1. Toolbar
         self.create_toolbar()
 
         # 2. Table Header
         self.create_table_header()
 
-        # 3. List Container
-        self.scroll_area = ctk.CTkScrollableFrame(self, fg_color="white", corner_radius=10)
-        self.scroll_area.pack(fill="both", expand=True, pady=(0, 20))
+        # 3. Table Container
+        self.table_frame = ctk.CTkFrame(self, fg_color="white", corner_radius=10)
+        self.table_frame.pack(fill="both", expand=True, pady=(0, 10))
+        
+        # 4. Pagination Controls
+        self.create_pagination_controls()
 
-        # 4. Load Data
+        # 5. Load Data
         self.load_data()
 
     def create_toolbar(self):
         toolbar = ctk.CTkFrame(self, fg_color="transparent", height=50)
         toolbar.pack(fill="x", pady=(0, 15))
         
-        # Search Entry (Giữ style đồng bộ)
         self.search_ent = ctk.CTkEntry(
             toolbar, placeholder_text="Search lecturer...", 
             width=300, height=40, border_color="#E5E7EB", border_width=1
         )
         self.search_ent.pack(side="left")
         
-        # Add Button (Text only)
         btn_add = ctk.CTkButton(
             toolbar, text="+ Add Lecturer", fg_color="#0F766E", hover_color="#115E59", height=40,
             font=("Arial", 13, "bold"),
@@ -40,63 +52,127 @@ class LecturersFrame(ctk.CTkFrame):
         btn_add.pack(side="right")
 
     def create_table_header(self):
-        h_frame = ctk.CTkFrame(self, fg_color="#E5E7EB", height=40, corner_radius=5)
+        h_frame = ctk.CTkFrame(self, fg_color="#E5E7EB", height=45, corner_radius=5)
         h_frame.pack(fill="x", pady=(0, 5))
         
-        # Columns: ID, Name, Email, Phone, Dept, Degree, Actions
-        cols = [("ID", 1), ("FULL NAME", 2), ("EMAIL", 2), ("PHONE", 1), ("DEPT", 1), ("DEGREE", 1), ("ACTIONS", 2)]
+        cols = ["ID", "FULL NAME", "EMAIL", "PHONE", "DEPT", "DEGREE", "ACTIONS"]
         
-        for i, (text, w) in enumerate(cols):
-            h_frame.grid_columnconfigure(i, weight=w)
+        for i, text in enumerate(cols):
             ctk.CTkLabel(
-                h_frame, text=text, font=("Arial", 11, "bold"), text_color="#374151", anchor="w"
-            ).grid(row=0, column=i, sticky="ew", padx=10, pady=8)
+                h_frame, text=text, font=("Arial", 11, "bold"), 
+                text_color="#374151", anchor="w",
+                width=self.col_widths[i]
+            ).grid(row=0, column=i, sticky="ew", padx=10, pady=10)
+
+    def create_pagination_controls(self):
+        self.pagination_frame = ctk.CTkFrame(self, fg_color="transparent", height=50)
+        self.pagination_frame.pack(fill="x", pady=(0, 10))
+        
+        self.page_label = ctk.CTkLabel(self.pagination_frame, text="Page 1 of 1", font=("Arial", 12), text_color="gray")
+        self.page_label.pack(side="left", padx=20)
+        
+        btn_box = ctk.CTkFrame(self.pagination_frame, fg_color="transparent")
+        btn_box.pack(side="right", padx=20)
+
+        self.prev_btn = ctk.CTkButton(
+            btn_box, text="← Previous", width=90, height=32,
+            fg_color="white", text_color="#333", border_color="#D1D5DB", border_width=1,
+            hover_color="#F3F4F6", state="disabled", command=self.prev_page
+        )
+        self.prev_btn.pack(side="left", padx=5)
+        
+        self.next_btn = ctk.CTkButton(
+            btn_box, text="Next →", width=90, height=32,
+            fg_color="#0F766E", text_color="white", hover_color="#115E59",
+            state="disabled", command=self.next_page
+        )
+        self.next_btn.pack(side="left", padx=5)
 
     def load_data(self):
-        for w in self.scroll_area.winfo_children(): w.destroy()
+        for w in self.table_frame.winfo_children(): w.destroy()
+        ctk.CTkLabel(self.table_frame, text="Loading data...", text_color="gray").pack(pady=20)
         
+        run_in_background(
+            self._fetch_lecturers,
+            on_complete=self._render_lecturers,
+            tk_root=self.winfo_toplevel()
+        )
+    
+    def _fetch_lecturers(self):
         try:
-            lecturers = self.controller.get_all_lecturers()
-            for idx, lec in enumerate(lecturers): 
-                self.create_row(lec, idx)
+            all_lecs = self.controller.get_all_lecturers()
+            return PaginationHelper.paginate(all_lecs, self.current_page, self.per_page)
         except Exception as e:
-            print(f"Error loading lecturers: {e}")
+            print(f"Error fetching: {e}")
+            return None
+    
+    def _render_lecturers(self, result):
+        for w in self.table_frame.winfo_children(): w.destroy()
+        
+        if not result or not result['data']:
+            ctk.CTkLabel(self.table_frame, text="No lecturers found.", text_color="gray").pack(pady=20)
+            self.page_label.configure(text="0 items")
+            self.prev_btn.configure(state="disabled")
+            self.next_btn.configure(state="disabled")
+            return
+
+        self.total_pages = result['total_pages']
+        self.total_items = result['total_items']
+        self.page_label.configure(text=f"Page {self.current_page} of {self.total_pages} ({self.total_items} items)")
+        
+        # --- FIX LỖI 2: SyntaxError (Bỏ dấu bằng sau else) ---
+        self.prev_btn.configure(
+            state="normal" if result['has_prev'] else "disabled", 
+            fg_color="white" if result['has_prev'] else "#F3F4F6"
+        )
+        self.next_btn.configure(
+            state="normal" if result['has_next'] else "disabled", 
+            fg_color="#0F766E" if result['has_next'] else "#9CA3AF"
+        )
+
+        for idx, item in enumerate(result['data']):
+            self.create_row(item, idx)
+
+    def prev_page(self):
+        if self.current_page > 1:
+            self.current_page -= 1
+            self.load_data()
+    
+    def next_page(self):
+        if self.current_page < self.total_pages:
+            self.current_page += 1
+            self.load_data()
 
     def create_row(self, data, idx):
-        # Zebra striping
         bg_color = "white" if idx % 2 == 0 else "#F9FAFB"
-        
-        row = ctk.CTkFrame(self.scroll_area, fg_color=bg_color, corner_radius=0, height=45)
+        row = ctk.CTkFrame(self.table_frame, fg_color=bg_color, corner_radius=0, height=45)
         row.pack(fill="x")
         
-        # Grid weights match Header
-        weights = [1, 2, 2, 1, 1, 1, 2]
-        for i, w in enumerate(weights): row.grid_columnconfigure(i, weight=w)
-
-        # Data Cells
-        ctk.CTkLabel(row, text=data.lecturer_code, font=("Arial", 12, "bold"), text_color="#333", anchor="w").grid(row=0, column=0, sticky="ew", padx=10, pady=12)
-        ctk.CTkLabel(row, text=data.full_name, font=("Arial", 12), text_color="#333", anchor="w").grid(row=0, column=1, sticky="ew", padx=10)
-        ctk.CTkLabel(row, text=data.email, font=("Arial", 12), text_color="#555", anchor="w").grid(row=0, column=2, sticky="ew", padx=10)
-        ctk.CTkLabel(row, text=data.phone, font=("Arial", 12), text_color="#555", anchor="w").grid(row=0, column=3, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=data.lecturer_code, font=("Arial", 12, "bold"), text_color="#333", anchor="w", width=self.col_widths[0]).grid(row=0, column=0, sticky="ew", padx=10, pady=12)
+        ctk.CTkLabel(row, text=data.full_name, font=("Arial", 12), text_color="#333", anchor="w", width=self.col_widths[1]).grid(row=0, column=1, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=data.email, font=("Arial", 12), text_color="#555", anchor="w", width=self.col_widths[2]).grid(row=0, column=2, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=data.phone, font=("Arial", 12), text_color="#555", anchor="w", width=self.col_widths[3]).grid(row=0, column=3, sticky="ew", padx=10)
         
         dept = data.dept_name if data.dept_name else 'N/A'
-        ctk.CTkLabel(row, text=dept, font=("Arial", 12), text_color="#555", anchor="w").grid(row=0, column=4, sticky="ew", padx=10)
-        
-        ctk.CTkLabel(row, text=data.degree, font=("Arial", 11, "bold"), text_color="#0F766E", anchor="w").grid(row=0, column=5, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=dept, font=("Arial", 12), text_color="#555", anchor="w", width=self.col_widths[4]).grid(row=0, column=4, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=data.degree, font=("Arial", 11, "bold"), text_color="#0F766E", anchor="w", width=self.col_widths[5]).grid(row=0, column=5, sticky="ew", padx=10)
 
-        # Actions (Text Buttons)
-        actions = ctk.CTkFrame(row, fg_color="transparent")
-        actions.grid(row=0, column=6, sticky="w", padx=5)
-        
+        actions = ctk.CTkFrame(row, fg_color="transparent", width=self.col_widths[6])
+        actions.grid(row=0, column=6, sticky="ew", padx=5)
+        actions.grid_propagate(False)
+
         self._action_btn(actions, "Edit", "#3B82F6", lambda: self.open_edit_dialog(data))
+        ctk.CTkLabel(actions, text=" ", width=5).pack(side="left")
         self._action_btn(actions, "Del", "#EF4444", lambda: self.delete_item(data.lecturer_id))
+        
+        ctk.CTkFrame(self.table_frame, height=1, fg_color="#F3F4F6").pack(fill="x")
 
     def _action_btn(self, parent, text, color, cmd):
         ctk.CTkButton(
-            parent, text=text, width=40, height=30, 
+            parent, text=text, width=40, height=28, 
             fg_color="transparent", text_color=color, hover_color="#F3F4F6",
             font=("Arial", 11, "bold"), command=cmd
-        ).pack(side="left", padx=2)
+        ).pack(side="left")
 
     def delete_item(self, lid):
         if messagebox.askyesno("Confirm", "Delete this lecturer?"):
@@ -112,7 +188,7 @@ class LecturersFrame(ctk.CTkFrame):
 
 
 # ==========================================
-# POPUP: ADD/EDIT LECTURER (STYLE UPDATE)
+# POPUP: ADD/EDIT LECTURER (ĐÃ SỬA DEPT MAP)
 # ==========================================
 class LecturerDialog(ctk.CTkToplevel):
     def __init__(self, parent, title, controller, callback, data=None):
@@ -121,34 +197,35 @@ class LecturerDialog(ctk.CTkToplevel):
         self.callback = callback
         self.data = data
         self.title(title)
-        self.geometry("700x450")
+        
+        self.departments = self.controller.get_all_departments()
+        self.dept_map = {d.dept_name: d.dept_id for d in self.departments}
+        dept_names = list(self.dept_map.keys())
+        
+        self.geometry("700x480")
         self.resizable(False, False)
         self.transient(parent)
         self.configure(fg_color="white")
         
         ctk.CTkLabel(self, text=title, font=("Arial", 20, "bold"), text_color="#111827").pack(pady=25, anchor="w", padx=40)
 
-        # Form Layout
         form = ctk.CTkFrame(self, fg_color="transparent")
         form.pack(fill="both", expand=True, padx=40)
 
-        # Fields
         self.ent_id = self._add_field(form, 0, 0, "Lecturer ID", "e.g. L101")
         self.ent_name = self._add_field(form, 0, 1, "Full Name", "e.g. Phan Gia Kiet")
         self.ent_email = self._add_field(form, 1, 0, "Email Address", "lecturer@test.com")
         self.ent_phone = self._add_field(form, 1, 1, "Phone Number", "0912345678")
 
-        # Dept & Degree
         ctk.CTkLabel(form, text="Department", font=("Arial", 12, "bold"), text_color="#374151").grid(row=4, column=0, sticky="w", pady=(10, 5))
         self.combo_dept = ctk.CTkComboBox(
-            form, values=["Computer Science", "Electrical Engineering", "Business"], 
+            form, values=dept_names, 
             width=300, height=40, border_color="#E5E7EB", fg_color="white", text_color="black"
         )
         self.combo_dept.grid(row=5, column=0, sticky="w", padx=(0, 20))
 
         self.ent_degree = self._add_field(form, 2, 1, "Academic Degree", "e.g. Ph.D. in AI")
 
-        # Buttons
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(fill="x", padx=40, pady=30)
         
@@ -164,15 +241,19 @@ class LecturerDialog(ctk.CTkToplevel):
             command=self.save
         ).pack(side="right")
 
-        # Fill Data if Edit
         if data:
             self.ent_id.insert(0, data.lecturer_code)
             self.ent_name.insert(0, data.full_name)
             self.ent_email.insert(0, data.email)
             self.ent_phone.insert(0, data.phone)
-            self.combo_dept.set(data.dept_name if data.dept_name else 'Computer Science')
-            self.ent_degree.delete(0, 'end'); self.ent_degree.insert(0, data.degree)
             
+            current_dept = data.dept_name if data.dept_name else ""
+            if current_dept in self.dept_map:
+                self.combo_dept.set(current_dept)
+            else:
+                self.combo_dept.set(dept_names[0] if dept_names else "")
+            
+            self.ent_degree.delete(0, 'end'); self.ent_degree.insert(0, data.degree)
             self.ent_id.configure(state="disabled") 
 
         self.lift()
@@ -186,20 +267,23 @@ class LecturerDialog(ctk.CTkToplevel):
         return ent
 
     def save(self):
-        dept_map = {"Computer Science": 1, "Electrical Engineering": 2, "Business": 3}
-        dept_id = dept_map.get(self.combo_dept.get(), 1)
+        dept_name = self.combo_dept.get()
+        dept_id = self.dept_map.get(dept_name)
+        
+        if not dept_id:
+            messagebox.showerror("Error", "Please select a valid department", parent=self)
+            return
 
-        if self.data: # Update
+        if self.data:
             success, msg = self.controller.update_lecturer(
                 self.data.lecturer_id, self.ent_name.get(), self.ent_email.get(), 
                 self.ent_phone.get(), dept_id, self.ent_degree.get()
             )
-        else: # Create
+        else:
             success, msg = self.controller.create_lecturer(
                 self.ent_id.get(), self.ent_name.get(), self.ent_email.get(), 
                 self.ent_phone.get(), dept_id, self.ent_degree.get()
             )
-
         if success:
             self.callback()
             self.destroy()

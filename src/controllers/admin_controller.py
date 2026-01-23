@@ -33,8 +33,11 @@ class AdminController:
     # =========================================================================
     # 1. STUDENT MANAGEMENT
     # =========================================================================
-    def get_all_students(self):
-        return self.student_repo.get_all()
+    def get_all_students(self, page=1, per_page=15):
+        return self.student_repo.get_all(page=page, per_page=per_page)
+
+    def get_total_students(self):
+        return self.student_repo.count_all()
 
     def create_student(self, full_name, email, phone, student_code, dept_id, major, year):
         if not Validators.is_valid_email(email):
@@ -89,8 +92,11 @@ class AdminController:
     # =========================================================================
     # 2. LECTURER MANAGEMENT
     # =========================================================================
-    def get_all_lecturers(self):
-        return self.lecturer_repo.get_all()
+    def get_all_lecturers(self, page=1, per_page=15):
+        return self.lecturer_repo.get_all(page=page, per_page=per_page)
+
+    def get_total_lecturers(self):
+        return self.lecturer_repo.count_all()
 
     def create_lecturer(self, lecturer_code, full_name, email, phone, dept_id, degree):
         if not Validators.is_valid_email(email):
@@ -128,8 +134,11 @@ class AdminController:
     # =========================================================================
     # 3. COURSE MANAGEMENT
     # =========================================================================
-    def get_all_courses(self):
-        return self.course_repo.get_all()
+    def get_all_courses(self, page=1, per_page=15):
+        return self.course_repo.get_all(page=page, per_page=per_page)
+
+    def get_total_courses(self):
+        return self.course_repo.count_all()
 
     def create_course(self, code, name, credits, type_c, desc, prereq):
         new_course = Course(None, code, name, credits, type_c, desc, prereq)
@@ -163,8 +172,11 @@ class AdminController:
     # =========================================================================
     # 5. CLASS MANAGEMENT
     # =========================================================================
-    def get_all_classes_details(self):
-        return self.class_repo.get_all_details()
+    def get_all_classes_details(self, page=1, per_page=15):
+        return self.class_repo.get_all_details(page=page, per_page=per_page)
+
+    def get_total_classes(self):
+        return self.class_repo.count_all()
 
     def create_class(self, course_id, semester_name, room, schedule, capacity):
         # Giả lập semester_id = 1 (Trong thực tế cần query semester_repo.get_by_name)

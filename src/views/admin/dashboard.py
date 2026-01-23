@@ -7,6 +7,7 @@ from views.admin.lecturers import LecturersFrame
 from views.admin.courses import CoursesFrame
 from views.admin.classes import ClassesFrame
 from views.admin.announcements import AnnouncementsFrame, AnnouncementDialog
+from utils.threading_helper import run_in_background
 
 class AdminDashboard(ctk.CTkFrame):
     def __init__(self, parent, app, user):
@@ -22,8 +23,13 @@ class AdminDashboard(ctk.CTkFrame):
         self.COLOR_TEXT_MAIN = "#111827"
         self.COLOR_TEXT_SUB = "#6B7280"
         
-        # Load stats
-        self.stats = self.controller.get_dashboard_stats()
+        # Load stats on background thread with tk_root
+        self.stats = {'students': 0, 'lecturers': 0, 'courses': 0, 'classes': 0}
+        run_in_background(
+            self.controller.get_dashboard_stats,
+            on_complete=self._update_stats,
+            tk_root=self.winfo_toplevel()
+        )
             
         self.grid_columnconfigure(0, weight=0) 
         self.grid_columnconfigure(1, weight=1) 
@@ -165,6 +171,13 @@ class AdminDashboard(ctk.CTkFrame):
                     break
 
         AnnouncementDialog(self, "New Announcement", self.controller, callback, user_id=self.user.user_id)
+
+    def _update_stats(self, stats):
+        """Callback when stats finish loading from background thread"""
+        self.stats = stats
+        # Refresh dashboard if home is currently displayed
+        if hasattr(self, 'page_title') and self.page_title.cget("text") == "Dashboard Overview":
+            self.show_home()
 
     # =========================================================================
     # 3. DASHBOARD HOME

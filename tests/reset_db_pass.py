@@ -41,7 +41,6 @@ def force_update_passwords():
             'student@test.com',
             'lecturer@test.com', 
             'admin@test.com',
-            'tidk54737@gmail.com',
         ]
 
         # 4. Thực hiện Update

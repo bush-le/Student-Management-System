@@ -1,23 +1,37 @@
 import customtkinter as ctk
 from tkinter import messagebox
 from controllers.admin_controller import AdminController
+from utils.threading_helper import run_in_background
+from utils.pagination import PaginationHelper
 
 class ClassesFrame(ctk.CTkFrame):
     def __init__(self, parent, user_id):
         super().__init__(parent, fg_color="transparent")
         self.controller = AdminController(user_id)
         
+        # Cấu hình phân trang
+        self.current_page = 1
+        self.per_page = 5
+        self.total_pages = 1
+        self.total_items = 0
+        
+        # --- CẤU HÌNH ĐỘ RỘNG CỐ ĐỊNH (PIXEL) ---
+        self.col_widths = [200, 180, 180, 80, 100, 200]
+
         # 1. Header
         self.create_header()
 
         # 2. Table Header
         self.create_table_header()
 
-        # 3. List
-        self.scroll_area = ctk.CTkScrollableFrame(self, fg_color="white", corner_radius=10)
-        self.scroll_area.pack(fill="both", expand=True, pady=(0, 20))
+        # 3. Table Frame
+        self.table_frame = ctk.CTkFrame(self, fg_color="white", corner_radius=10)
+        self.table_frame.pack(fill="both", expand=True, pady=(0, 10))
 
-        # 4. Load Data
+        # 4. Pagination Controls
+        self.create_pagination_controls()
+
+        # 5. Load Data
         self.load_data()
 
     def create_header(self):
@@ -42,55 +56,111 @@ class ClassesFrame(ctk.CTkFrame):
         h_frame.pack(fill="x", padx=20, pady=(0, 5))
         
         # Columns: Course, Lecturer, Schedule, Room, Capacity, Action
-        cols = [("COURSE", 2), ("LECTURER", 2), ("SCHEDULE", 2), ("ROOM", 1), ("CAPACITY", 1), ("ACTIONS", 3)]
+        cols = ["COURSE", "LECTURER", "SCHEDULE", "ROOM", "CAPACITY", "ACTIONS"]
         
-        for i, (text, w) in enumerate(cols):
-            h_frame.grid_columnconfigure(i, weight=w)
+        for i, text in enumerate(cols):
             ctk.CTkLabel(
-                h_frame, text=text, font=("Arial", 11, "bold"), text_color="#374151", anchor="w"
+                h_frame, text=text, font=("Arial", 11, "bold"), text_color="#374151", anchor="w",
+                width=self.col_widths[i]
             ).grid(row=0, column=i, sticky="ew", padx=10, pady=12)
 
+    def create_pagination_controls(self):
+        self.pagination_frame = ctk.CTkFrame(self, fg_color="transparent", height=50)
+        self.pagination_frame.pack(fill="x", pady=(0, 10))
+        
+        self.page_label = ctk.CTkLabel(self.pagination_frame, text="Page 1 of 1", font=("Arial", 12), text_color="gray")
+        self.page_label.pack(side="left", padx=20)
+        
+        btn_box = ctk.CTkFrame(self.pagination_frame, fg_color="transparent")
+        btn_box.pack(side="right", padx=20)
+
+        self.prev_btn = ctk.CTkButton(
+            btn_box, text="← Previous", width=90, height=32,
+            fg_color="white", text_color="#333", border_color="#D1D5DB", border_width=1,
+            hover_color="#F3F4F6", state="disabled", command=self.prev_page
+        )
+        self.prev_btn.pack(side="left", padx=5)
+        
+        self.next_btn = ctk.CTkButton(
+            btn_box, text="Next →", width=90, height=32,
+            fg_color="#0F766E", text_color="white", hover_color="#115E59",
+            state="disabled", command=self.next_page
+        )
+        self.next_btn.pack(side="left", padx=5)
+
     def load_data(self):
-        for w in self.scroll_area.winfo_children(): w.destroy()
+        for w in self.table_frame.winfo_children(): w.destroy()
+        ctk.CTkLabel(self.table_frame, text="Loading data...", text_color="gray").pack(pady=20)
+        
+        run_in_background(
+            self._fetch_classes,
+            on_complete=self._render_classes,
+            tk_root=self.winfo_toplevel()
+        )
+
+    def _fetch_classes(self):
         try:
-            classes = self.controller.get_all_classes_details()
-            for idx, c in enumerate(classes): 
-                self.create_row(c, idx)
+            all_classes = self.controller.get_all_classes_details()
+            return PaginationHelper.paginate(all_classes, self.current_page, self.per_page)
         except Exception as e:
             print(f"Error loading classes: {e}")
+            return None
+
+    def _render_classes(self, result):
+        for w in self.table_frame.winfo_children(): w.destroy()
+
+        if not result or not result['data']:
+            ctk.CTkLabel(self.table_frame, text="No classes found.", text_color="gray").pack(pady=20)
+            self.page_label.configure(text="0 items")
+            self.prev_btn.configure(state="disabled"); self.next_btn.configure(state="disabled")
+            return
+
+        self.total_pages = result['total_pages']
+        self.total_items = result['total_items']
+        self.page_label.configure(text=f"Page {self.current_page} of {self.total_pages} ({self.total_items} items)")
+        
+        self.prev_btn.configure(
+            state="normal" if result['has_prev'] else "disabled", 
+            fg_color="white" if result['has_prev'] else "#F3F4F6"
+        )
+        self.next_btn.configure(
+            state="normal" if result['has_next'] else "disabled", 
+            fg_color="#0F766E" if result['has_next'] else "#9CA3AF"
+        )
+
+        for idx, item in enumerate(result['data']):
+            self.create_row(item, idx)
 
     def create_row(self, data, idx):
         # Zebra Striping
         bg_color = "white" if idx % 2 == 0 else "#F9FAFB"
         
-        row = ctk.CTkFrame(self.scroll_area, fg_color=bg_color, corner_radius=0, height=45)
+        row = ctk.CTkFrame(self.table_frame, fg_color=bg_color, corner_radius=0, height=45)
         row.pack(fill="x")
         
-        weights = [2, 2, 2, 1, 1, 3]
-        for i, w in enumerate(weights): row.grid_columnconfigure(i, weight=w)
-
         # 1. Course Name
-        ctk.CTkLabel(row, text=data.course_name, font=("Arial", 12, "bold"), text_color="#333", anchor="w").grid(row=0, column=0, sticky="ew", padx=10, pady=12)
+        ctk.CTkLabel(row, text=data.course_name, font=("Arial", 12, "bold"), text_color="#333", anchor="w", width=self.col_widths[0]).grid(row=0, column=0, sticky="ew", padx=10, pady=12)
         
         # 2. Lecturer (Text Only - No Icon)
         lec_name = data.lecturer_name if data.lecturer_name else "Unassigned"
         lec_color = "#333" if data.lecturer_name else "#EF4444" # Đỏ nếu chưa có GV
-        ctk.CTkLabel(row, text=lec_name, font=("Arial", 12), text_color=lec_color, anchor="w").grid(row=0, column=1, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=lec_name, font=("Arial", 12), text_color=lec_color, anchor="w", width=self.col_widths[1]).grid(row=0, column=1, sticky="ew", padx=10)
 
         # 3. Schedule
         sched = data.schedule if data.schedule else 'TBA'
-        ctk.CTkLabel(row, text=sched, font=("Arial", 12), text_color="#555", anchor="w").grid(row=0, column=2, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=sched, font=("Arial", 12), text_color="#555", anchor="w", width=self.col_widths[2]).grid(row=0, column=2, sticky="ew", padx=10)
 
         # 4. Room
-        ctk.CTkLabel(row, text=data.room, font=("Arial", 12), text_color="#555", anchor="w").grid(row=0, column=3, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=data.room, font=("Arial", 12), text_color="#555", anchor="w", width=self.col_widths[3]).grid(row=0, column=3, sticky="ew", padx=10)
 
         # 5. Capacity
         cap_text = f"{data.current_enrolled} / {data.max_capacity}"
-        ctk.CTkLabel(row, text=cap_text, font=("Arial", 12, "bold"), text_color="#059669", anchor="w").grid(row=0, column=4, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=cap_text, font=("Arial", 12, "bold"), text_color="#059669", anchor="w", width=self.col_widths[4]).grid(row=0, column=4, sticky="ew", padx=10)
 
         # 6. Actions (Text Buttons)
-        actions = ctk.CTkFrame(row, fg_color="transparent")
-        actions.grid(row=0, column=5, sticky="w", padx=5)
+        actions = ctk.CTkFrame(row, fg_color="transparent", width=self.col_widths[5])
+        actions.grid(row=0, column=5, sticky="ew", padx=5)
+        actions.grid_propagate(False)
         
         # Assign Btn
         self._action_btn(actions, "Assign", "#4F46E5", lambda: self.open_assign_dialog(data))
@@ -98,6 +168,18 @@ class ClassesFrame(ctk.CTkFrame):
         self._action_btn(actions, "Edit", "#3B82F6", lambda: self.open_edit_dialog(data))
         # Delete Btn
         self._action_btn(actions, "Del", "#EF4444", lambda: self.delete_item(data.class_id))
+
+        ctk.CTkFrame(self.table_frame, height=1, fg_color="#F3F4F6").pack(fill="x")
+
+    def prev_page(self):
+        if self.current_page > 1:
+            self.current_page -= 1
+            self.load_data()
+    
+    def next_page(self):
+        if self.current_page < self.total_pages:
+            self.current_page += 1
+            self.load_data()
 
     def _action_btn(self, parent, text, color, cmd):
         ctk.CTkButton(
@@ -146,7 +228,8 @@ class ClassDialog(ctk.CTkToplevel):
         ctk.CTkLabel(form, text="Select Course", font=("Arial", 12, "bold"), text_color="#374151").pack(anchor="w", pady=(5, 5))
         
         courses = self.controller.get_all_courses()
-        course_names = [f"{c['course_code']} - {c['course_name']}" for c in courses]
+        # Convert Course objects to dict-like format for display
+        course_names = [f"{c.course_code} - {c.course_name}" if hasattr(c, 'course_code') else f"{c['course_code']} - {c['course_name']}" for c in courses]
         
         self.combo_course = ctk.CTkComboBox(
             form, values=course_names, width=520, height=40,

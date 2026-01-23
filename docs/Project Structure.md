@@ -1,66 +1,67 @@
-StudentManagementSystem/
-├── assets/                  # UI assets like images and icons
-│   ├── images/
-│   └── icons/
-├── data/                    # Templates for bulk data import (e.g., students.csv)
-├── docs/                    # Official Requirements and Design documentation
-├── src/                     # Core application source code
-│   ├── main.py              # Application entry point
-│   ├── config.py            # Global settings and environment loader
-│   ├── database/            # MySQL storage management
-│   │   ├── __init__.py
-│   │   ├── connection.py    # Handles database connection sessions
-│   │   └── schema.sql       # SQL scripts to build the database tables
-│   ├── models/              # OOP Entity definitions
-│   │   ├── __init__.py
-│   │   ├── user.py          # Base User class (Common Module)
-│   │   ├── student.py       # Student class inheriting from User
-│   │   ├── lecturer.py      # Lecturer class inheriting from User
-│   │   └── academic/        # Sub-package for school-related entities
-│   │       ├── __init__.py
-│   │       ├── department.py   # Department information
-│   │       ├── semester.py     # Academic terms and dates
-│   │       ├── course.py       # Course catalog details (Credits, etc.)
-│   │       ├── course_class.py # Specific class sections and schedules
-│   │       ├── grade.py        # Student scores and GPA calculations
-│   │       └── announcement.py # System notifications and alerts
-│   ├── views/               # GUI layers separated by user role
-│   │   ├── __init__.py
-│   │   ├── root_app.py      # Main application window container
-│   │   ├── components/      # Reusable UI widgets (custom buttons, inputs)
-│   │   ├── auth/            # Authentication screens
-│   │   │   ├── login_window.py
-│   │   │   └── forgot_password.py
-│   │   ├── student/         # Student interfaces
-│   │   │   ├── dashboard.py
-│   │   │   ├── schedule.py
-│   │   │   ├── grades.py
-│   │   │   ├── profile.py
-│   │   │   └── notifications.py
-│   │   ├── lecturer/        # Lecturer interfaces
-│   │   │   ├── dashboard.py
-│   │   │   ├── schedule.py
-│   │   │   ├── my_class.py
-│   │   │   └── class_manager.py
-│   │   └── admin/           # Admin interfaces
-│   │       ├── dashboard.py
-│   │       ├── semesters.py
-│   │       ├── student.py
-│   │       ├── lecturers.py
-│   │       ├── courses.py
-│   │       ├── classes.py
-│   │       └── announcements.py
-│   ├── controllers/         # Bridges logic between Models and Views
-│   │   ├── __init__.py
-│   │   ├── auth_controller.py
-│   │   ├── student_controller.py
-│   │   ├── lecturer_controller.py
-│   │   └── admin_controller.py
-│   └── utils/               # Shared helper functions
-│       ├── __init__.py
-│       ├── email_service.py # Password recovery email handler
-│       ├── security.py      # Encryption and hashing for passwords
-│       └── validators.py    # Data format validation (email, phone, etc.)
-├── tests/                   # Automated tests for each module
-├── requirements.txt         # Required Python packages (mysql-connector, etc.)
-└── .env                     # Private environment variables
+# Project Structure - Student Management System
+
+This document describes the directory structure and software architecture of the project. The system is built using the **MVC (Model-View-Controller)** pattern combined with the **Repository Pattern** to separate the data access layer.
+
+## 📂 Directory Structure
+
+```text
+Student-Management-System/
+├── docs/                           # Project documentation & Database scripts
+│   └── sql_script/
+│       └── create_account_test.sql # Script to create sample data for testing
+├── src/                            # Main source code
+│   ├── config.py                   # System configuration (Load .env environment variables)
+│   ├── main.py                     # Application entry point
+│   │
+│   ├── controllers/                # Business Logic Layer
+│   │   ├── admin_controller.py     # Admin logic (CRUD, Statistics)
+│   │   ├── auth_controller.py      # Authentication logic (Login, Reset Password)
+│   │   ├── lecturer_controller.py  # Lecturer logic (Teaching schedule, Grading)
+│   │   └── student_controller.py   # Student logic (View grades, Schedule)
+│   │
+│   ├── database/                   # Data Access Layer (Database Access)
+│   │   ├── connection.py           # Connection management (Connection Pooling)
+│   │   ├── repository.py           # BaseRepository (Parent class with common logic)
+│   │   └── repositories/           # Specific Repositories for each Entity
+│   │       ├── announcement_repo.py
+│   │       ├── class_repo.py
+│   │       ├── course_repo.py
+│   │       ├── department_repo.py
+│   │       ├── grade_repo.py
+│   │       ├── lecturer_repo.py
+│   │       ├── semester_repo.py
+│   │       ├── student_repo.py
+│   │       └── user_repo.py
+│   │
+│   ├── models/                     # Data Models (Map data from DB)
+│   │   ├── user.py                 # Base User Model
+│   │   ├── student.py              # Student Model
+│   │   ├── lecturer.py             # Lecturer Model
+│   │   └── academic/               # Academic models
+│   │       ├── announcement.py
+│   │       ├── course.py
+│   │       ├── course_class.py
+│   │       ├── department.py
+│   │       ├── grade.py
+│   │       └── semester.py
+│   │
+│   ├── utils/                      # Utility helpers
+│   │   ├── email_service.py        # Email service (Resend API)
+│   │   ├── security.py             # Security (Hash password, OTP)
+│   │   └── validators.py           # Input validation (Regex)
+│   │
+│   └── views/                      # Presentation Layer (UI - CustomTkinter)
+│       ├── root_app.py             # Main window management and navigation
+│       ├── admin/                  # Admin Interface
+│       │   ├── announcements.py
+│       │   ├── classes.py
+│       │   ├── courses.py
+│   │   ├── dashboard.py        # Admin Dashboard
+│       │   ├── lecturers.py
+│       │   ├── semesters.py
+│       │   └── student.py
+│       └── student/                # Student Interface
+│           └── grades.py           # View grades
+│
+└── tests/                          # Test scripts
+```

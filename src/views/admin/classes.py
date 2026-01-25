@@ -23,7 +23,7 @@ class ClassesFrame(ctk.CTkFrame):
 
         # 3. Table Frame
         self.table_frame = ctk.CTkFrame(self, fg_color="white", corner_radius=10)
-        self.table_frame.pack(fill="both", expand=True, pady=(0, 10))
+        self.table_frame.pack(fill="both", expand=True, pady=(0, 10), padx=20)
 
         # 4. Pagination Controls
         self.create_pagination_controls()
@@ -180,7 +180,7 @@ class ClassesFrame(ctk.CTkFrame):
 
         # 6. Actions (Text Buttons)
         actions = ctk.CTkFrame(row, fg_color="transparent", width=self.col_widths[5])
-        actions.grid(row=0, column=5, sticky="ew", padx=5)
+        actions.grid(row=0, column=5, sticky="ew", padx=10)
         actions.grid_propagate(False)
         # Assign Btn 
         self._action_btn(actions, "Assign", "#4F46E5", lambda: self.open_assign_dialog(data))
@@ -416,9 +416,17 @@ class AssignLecturerDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(ctx_frame, text="CLASS INFORMATION", font=("Arial", 10, "bold"), text_color="#0284C7").pack(anchor="w", padx=15, pady=(15, 5))
         
-        self._ctx_row(ctx_frame, "Course", class_data.course_name, "Time Slot", class_data.schedule)
-        self._ctx_row(ctx_frame, "Room", class_data.room, "Capacity", f"{class_data.max_capacity} Students")
-        ctk.CTkFrame(ctx_frame, height=15, fg_color="transparent").pack() # Spacer
+        # Use Grid for better alignment
+        info_grid = ctk.CTkFrame(ctx_frame, fg_color="transparent")
+        info_grid.pack(fill="x", padx=15, pady=(0, 15))
+        info_grid.grid_columnconfigure(0, weight=1)
+        info_grid.grid_columnconfigure(1, weight=1)
+
+        self._add_info_item(info_grid, 0, 0, "Course", class_data.course_name)
+        self._add_info_item(info_grid, 0, 1, "Time Slot", class_data.schedule if class_data.schedule else "TBA")
+        self._add_info_item(info_grid, 1, 0, "Room", class_data.room)
+        self._add_info_item(info_grid, 1, 1, "Capacity", f"{class_data.max_capacity} Students")
+
         # 2. Select Lecturer
         ctk.CTkLabel(self, text="Select Lecturer", font=("Arial", 12, "bold"), text_color="#374151").pack(anchor="w", padx=30)
         
@@ -452,21 +460,11 @@ class AssignLecturerDialog(ctk.CTkToplevel):
         self.lift()
         self.after(100, lambda: [self.focus_force(), self.grab_set()])
 
-    def _ctx_row(self, parent, l1, v1, l2, v2):
-        row = ctk.CTkFrame(parent, fg_color="transparent")
-        row.pack(fill="x", padx=15, pady=2)
-        
-        # Col 1
-        f1 = ctk.CTkFrame(row, fg_color="transparent", width=200)
-        f1.pack(side="left", fill="x", expand=True)
-        ctk.CTkLabel(f1, text=l1, font=("Arial", 11), text_color="#6B7280").pack(anchor="w")
-        ctk.CTkLabel(f1, text=v1, font=("Arial", 12, "bold"), text_color="#111827").pack(anchor="w")
-        
-        # Col 2
-        f2 = ctk.CTkFrame(row, fg_color="transparent", width=200)
-        f2.pack(side="left", fill="x", expand=True)
-        ctk.CTkLabel(f2, text=l2, font=("Arial", 11), text_color="#6B7280").pack(anchor="w")
-        ctk.CTkLabel(f2, text=v2, font=("Arial", 12, "bold"), text_color="#111827").pack(anchor="w")
+    def _add_info_item(self, parent, r, c, label, value):
+        f = ctk.CTkFrame(parent, fg_color="transparent")
+        f.grid(row=r, column=c, sticky="ew", pady=5, padx=5)
+        ctk.CTkLabel(f, text=label, font=("Arial", 11), text_color="#6B7280").pack(anchor="w")
+        ctk.CTkLabel(f, text=str(value), font=("Arial", 12, "bold"), text_color="#111827").pack(anchor="w")
 
     def confirm(self):
         selection = self.combo_lec.get()

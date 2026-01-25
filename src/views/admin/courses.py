@@ -180,7 +180,7 @@ class CoursesFrame(ctk.CTkFrame):
                      width=self.col_widths[2]).grid(row=0, column=2, sticky="ew", padx=5)
 
         # 4. Prereq
-        prereq = data.prerequisites_id if hasattr(data, 'prerequisites_id') and data.prerequisites_id else '-'
+        prereq = data.prerequisite_code if hasattr(data, 'prerequisite_code') and data.prerequisite_code else '-'
         ctk.CTkLabel(row, text=prereq, font=("Arial", 12), text_color="gray", anchor="w",
                      width=self.col_widths[3]).grid(row=0, column=3, sticky="ew", padx=5)
         # 5. Actions
@@ -240,9 +240,18 @@ class CourseDialog(ctk.CTkToplevel):
         self.txt_desc = ctk.CTkTextbox(form, height=60, border_color="#E5E7EB", border_width=1, fg_color="white", text_color="black")
         self.txt_desc.grid(row=5, column=0, columnspan=2, sticky="ew")
 
-        ctk.CTkLabel(form, text="Prerequisites (codes)", font=("Arial", 12, "bold"), text_color="#374151").grid(row=6, column=0, columnspan=2, sticky="w", pady=(10, 5)) # Prerequisites label
-        self.ent_prereq = ctk.CTkEntry(form, placeholder_text="e.g. CS101, MATH101", height=40, border_color="#E5E7EB")
-        self.ent_prereq.grid(row=7, column=0, columnspan=2, sticky="ew")
+        # --- Prerequisite Dropdown ---
+        ctk.CTkLabel(form, text="Prerequisite Course", font=("Arial", 12, "bold"), text_color="#374151").grid(row=6, column=0, columnspan=2, sticky="w", pady=(10, 5))
+        
+        # Fetch all courses for dropdown mapping
+        all_courses, _ = self.controller.get_all_courses(page=None, per_page=None)
+        self.course_map = {c.course_code: c.course_id for c in all_courses}
+        self.id_map = {c.course_id: c.course_code for c in all_courses}
+        
+        # Exclude current course from prerequisites (if editing) to prevent self-reference
+        prereq_values = ["None"] + sorted([c.course_code for c in all_courses if not data or c.course_id != data.course_id])
+        self.combo_prereq = ctk.CTkComboBox(form, values=prereq_values, height=40, border_color="#E5E7EB", fg_color="white", text_color="black")
+        self.combo_prereq.grid(row=7, column=0, columnspan=2, sticky="ew")
 
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(fill="x", padx=40, pady=30)
@@ -255,7 +264,13 @@ class CourseDialog(ctk.CTkToplevel):
             self.ent_name.insert(0, data.course_name)
             self.ent_credits.insert(0, str(data.credits))
             self.txt_desc.insert("0.0", data.description if data.description else '')
-            self.ent_prereq.insert(0, data.prerequisites_id if hasattr(data, 'prerequisites_id') and data.prerequisites_id else '')
+            
+            # Set ComboBox value based on ID
+            if data.prerequisite_id and data.prerequisite_id in self.id_map:
+                self.combo_prereq.set(self.id_map[data.prerequisite_id])
+            else:
+                self.combo_prereq.set("None")
+                
             self.ent_code.configure(state="disabled")
 
         self.lift()
@@ -278,7 +293,10 @@ class CourseDialog(ctk.CTkToplevel):
         code = self.ent_code.get()
         name = self.ent_name.get()
         desc = self.txt_desc.get("0.0", "end").strip()
-        prereq = self.ent_prereq.get()
+
+        # Get ID from selected Code
+        prereq_code = self.combo_prereq.get()
+        prereq = self.course_map.get(prereq_code) # Returns None if "None" or invalid
 
         def _save_task():
             if self.data:

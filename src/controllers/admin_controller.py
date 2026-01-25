@@ -198,12 +198,12 @@ class AdminController:
     def get_total_courses(self):
         return self.course_repo.count_all()
 
-    def create_course(self, code, name, credits, type_c, desc, prereq):
-        new_course = Course(None, code, name, credits, type_c, desc, prereq)
+    def create_course(self, code, name, credits, desc, prereq):
+        new_course = Course(None, code, name, credits, desc, prereq)
         return self.course_repo.add(new_course)
 
-    def update_course(self, course_id, code, name, credits, type_c, desc, prereq):
-        updated_course = Course(course_id, code, name, credits, type_c, desc, prereq)
+    def update_course(self, course_id, code, name, credits, desc, prereq):
+        updated_course = Course(course_id, code, name, credits, desc, prereq)
         return self.course_repo.update(updated_course)
 
     def delete_course(self, course_id):

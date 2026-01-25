@@ -1,12 +1,12 @@
 class Course:
-    def __init__(self, course_id, course_code, course_name, credits, course_type, description, prerequisites_id):
+    def __init__(self, course_id, course_code, course_name, credits, description, prerequisite_id, prerequisite_code=None):
         self.course_id = course_id
         self.course_code = course_code
         self.course_name = course_name
         self.credits = credits
-        self.course_type = course_type
         self.description = description
-        self.prerequisites_id = prerequisites_id
+        self.prerequisite_id = prerequisite_id
+        self.prerequisite_code = prerequisite_code
 
     @classmethod
     def from_db_row(cls, row):
@@ -16,7 +16,7 @@ class Course:
             course_code=row.get('course_code'),
             course_name=row.get('course_name'),
             credits=row.get('credits'),
-            course_type=row.get('course_type'),
             description=row.get('description'),
-            prerequisites_id=row.get('prerequisites_id')
+            prerequisite_id=row.get('prerequisite_id'),
+            prerequisite_code=row.get('prerequisite_code')
         )

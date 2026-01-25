@@ -477,6 +477,19 @@ class AssignLecturerDialog(ctk.CTkToplevel):
         lecturer_id = self.lec_map[selection]
         
         def _assign_task():
+            # Check for schedule conflicts
+            all_classes, _ = self.controller.get_all_classes_details(page=None, per_page=None)
+            
+            target_sem = self.class_data.semester_id
+            target_sched = self.class_data.schedule
+            
+            if target_sched and target_sched != "TBA":
+                for c in all_classes:
+                    # Check if lecturer is already teaching in this semester at the same time
+                    if c.lecturer_id == lecturer_id and c.semester_id == target_sem:
+                        if c.class_id != self.class_data.class_id and c.schedule == target_sched:
+                            return False, f"Conflict: Lecturer is busy with {c.course_name} at {c.schedule}"
+
             return self.controller.assign_lecturer_to_class(self.class_data.class_id, lecturer_id)
             
         def _on_complete(result):

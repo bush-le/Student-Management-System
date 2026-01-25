@@ -282,14 +282,13 @@ class CourseDialog(ctk.CTkToplevel):
 
         def _save_task():
             if self.data:
-                c_type = getattr(self.data, 'course_type', 'Core')
                 return self.controller.update_course(
                     self.data.course_id, code, name,
-                    credits, c_type, desc, prereq
+                    credits, desc, prereq
                 )
             else:
                 return self.controller.create_course(
-                    code, name, credits, "Core",
+                    code, name, credits,
                     desc, prereq
                 )
 

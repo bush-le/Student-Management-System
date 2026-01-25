@@ -2,23 +2,40 @@ from database.repository import BaseRepository
 from models.lecturer import Lecturer
 
 class LecturerRepository(BaseRepository):
-    def get_all(self, page=None, per_page=None):
+    def get_all(self, page=None, per_page=None, search_query=None):
         """Get lecturers (optional pagination)"""
         sql = """
-            SELECT l.*, u.*, d.dept_name 
+            SELECT SQL_CALC_FOUND_ROWS l.*, u.*, d.dept_name 
             FROM Lecturers l
             JOIN Users u ON l.user_id = u.user_id
             LEFT JOIN Departments d ON l.dept_id = d.dept_id
-            ORDER BY l.lecturer_code ASC
         """
-        params = ()
+        params = []
+        if search_query:
+            sql += " WHERE (l.lecturer_code LIKE %s OR u.full_name LIKE %s OR u.email LIKE %s) "
+            term = f"%{search_query}%"
+            params.extend([term, term, term])
+            
+        sql += " ORDER BY l.lecturer_code ASC"
+
         if page is not None and per_page is not None:
             offset = (page - 1) * per_page
             sql += " LIMIT %s OFFSET %s"
-            params = (per_page, offset)
+            params.extend([per_page, offset])
             
-        results = self.execute_query(sql, params, fetch_all=True)
-        return [Lecturer.from_db_row(row) for row in results]
+        # Execute with manual connection to get FOUND_ROWS
+        conn = self.db.get_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(sql, tuple(params))
+            results = cursor.fetchall()
+            
+            cursor.execute("SELECT FOUND_ROWS() as total")
+            total = cursor.fetchone()['total']
+            
+            return [Lecturer.from_db_row(row) for row in results], total
+        finally:
+            conn.close()
 
     def get_by_id(self, lecturer_id):
         sql = "SELECT l.*, u.*, d.dept_name FROM Lecturers l JOIN Users u ON l.user_id = u.user_id LEFT JOIN Departments d ON l.dept_id = d.dept_id WHERE l.lecturer_id = %s"

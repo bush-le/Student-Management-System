@@ -1,10 +1,12 @@
 from datetime import datetime
 from database.repositories.lecturer_repo import LecturerRepository
+from database.repositories.student_repo import StudentRepository
 from database.repositories.class_repo import ClassRepository
 from database.repositories.grade_repo import GradeRepository
 from database.repositories.semester_repo import SemesterRepository
 from models.academic.grade import Grade
 from utils.validators import Validators
+from database.repositories.announcement_repo import AnnouncementRepository
 
 class LecturerController:
     def __init__(self, user_id):
@@ -12,9 +14,11 @@ class LecturerController:
         
         # OPTIMIZATION: Lazy load repositories
         self._lecturer_repo = None
+        self._student_repo = None
         self._class_repo = None
         self._grade_repo = None
         self._semester_repo = None
+        self._ann_repo = None
         
         # Load lecturer information immediately upon initialization
         # OPTIMIZATION: Use Lazy Loading to avoid blocking UI during init
@@ -25,6 +29,11 @@ class LecturerController:
     def lecturer_repo(self):
         if self._lecturer_repo is None: self._lecturer_repo = LecturerRepository()
         return self._lecturer_repo
+
+    @property
+    def student_repo(self):
+        if self._student_repo is None: self._student_repo = StudentRepository()
+        return self._student_repo
 
     @property
     def class_repo(self):
@@ -41,11 +50,16 @@ class LecturerController:
         if self._semester_repo is None: self._semester_repo = SemesterRepository()
         return self._semester_repo
 
+    @property
+    def ann_repo(self):
+        if self._ann_repo is None: self._ann_repo = AnnouncementRepository()
+        return self._ann_repo
+
     def _ensure_lecturer_loaded(self):
         if self.current_lecturer is None:
             self.current_lecturer = self.lecturer_repo.get_by_user_id(self.user_id)
 
-    def get_teaching_schedule(self, force_update=False):
+    def get_teaching_schedule(self, force_update=False, active_only=False):
         """
         FR-10: View Assigned Schedule
         """
@@ -53,11 +67,32 @@ class LecturerController:
         if not self.current_lecturer:
             return []
         
-        if not force_update and self._schedule_cache is not None:
-            return self._schedule_cache
+        # Load data if needed
+        if force_update or self._schedule_cache is None:
+            try:
+                self._schedule_cache = self.class_repo.get_schedule_by_lecturer(self.current_lecturer.lecturer_id)
+            except Exception as e:
+                print(f"⚠️ [LecturerController] Error loading schedule: {e}")
+                return []
+
+        data = self._schedule_cache
+
+        # Filter if active_only is requested
+        if active_only:
+            filtered = []
+            for cls in data:
+                # 1. Check Semester Status
+                if cls.get('semester_status') == 'CLOSED':
+                    continue
+                # 2. Check End Date
+                end_date = cls.get('semester_end_date')
+                if end_date and hasattr(end_date, 'year'):
+                    if datetime.now().date() > end_date:
+                        continue
+                filtered.append(cls)
+            return filtered
             
-        self._schedule_cache = self.class_repo.get_schedule_by_lecturer(self.current_lecturer.lecturer_id)
-        return self._schedule_cache
+        return data
 
     def get_class_student_list(self, class_id):
         """
@@ -100,7 +135,14 @@ class LecturerController:
         FR-12 & FR-13: Enter/Update Grades
         """
         # Validate inputs # Validate inputs
-        if not (Validators.is_valid_grade(attendance) and Validators.is_valid_grade(midterm) and Validators.is_valid_grade(final)):
+        try:
+            attendance = float(attendance)
+            midterm = float(midterm)
+            final = float(final)
+        except ValueError:
+             return False, "Grades must be numeric."
+
+        if not (0 <= attendance <= 10 and 0 <= midterm <= 10 and 0 <= final <= 10):
              return False, "Grades must be between 0.0 and 10.0"
 
         # --- UC13: Check Semester Status & Date ---
@@ -190,7 +232,7 @@ class LecturerController:
         
         for sid, att, mid, fin in grades_data:
             # Validate inputs locally
-            if not (Validators.is_valid_grade(att) and Validators.is_valid_grade(mid) and Validators.is_valid_grade(fin)):
+            if not (0 <= att <= 10 and 0 <= mid <= 10 and 0 <= fin <= 10):
                  continue
 
             # Find grade_id from map (Memory lookup instead of DB query)
@@ -205,8 +247,29 @@ class LecturerController:
             )
             if self.grade_repo.update_scores(grade_obj):
                 success_count += 1
+                # Notify student (Simulated)
+                self._notify_student_grade_update(sid, class_id)
+        
+        if success_count == 0 and grades_data:
+            return False, "No grades were saved. Please check inputs (0-10)."
                 
         return True, f"Successfully saved grades for {success_count} students."
+
+    def _notify_student_grade_update(self, student_id, class_id):
+        """
+        Simulates sending a notification/email to the student.
+        In a real app, this would call EmailService.send_grade_update(...)
+        """
+        try:
+            student = self.student_repo.get_by_id(student_id)
+            # Kiểm tra user_id để gửi thông báo
+            if student and hasattr(student, 'user_id'):
+                title = "Grade Update"
+                body = f"Your grades for Class ID {class_id} have been updated. Please check your transcript."
+                self.ann_repo.add_notification(student.user_id, title, body)
+                print(f"🔔 [NOTIFICATION] Saved to Announcements for Student {student_id}")
+        except Exception as e:
+            print(f"⚠️ Failed to notify student {student_id}: {e}")
 
     def get_dashboard_summary(self):
         """
@@ -217,7 +280,7 @@ class LecturerController:
             return None, {'total_classes': 0, 'total_students': 0}
 
         # 1. Fetch Schedule (Use Cache if available)
-        schedule = self.get_teaching_schedule(force_update=False)
+        schedule = self.get_teaching_schedule(force_update=False, active_only=True)
         
         # 2. Process Upcoming Class
         upcoming = None

@@ -2,24 +2,38 @@ from database.repository import BaseRepository
 from models.academic.course_class import CourseClass
 
 class ClassRepository(BaseRepository):
-    def get_all_details(self, page=None, per_page=None):
+    def get_all_details(self, page=None, per_page=None, search_query=None):
         sql = """
-            SELECT cc.*, c.course_name, c.course_code, u.full_name as lecturer_name,
+            SELECT SQL_CALC_FOUND_ROWS cc.*, c.course_name, c.course_code, u.full_name as lecturer_name,
                    (SELECT COUNT(*) FROM Grades WHERE class_id = cc.class_id) as current_enrolled
             FROM Course_Classes cc
             JOIN Courses c ON cc.course_id = c.course_id
             LEFT JOIN Lecturers l ON cc.lecturer_id = l.lecturer_id
             LEFT JOIN Users u ON l.user_id = u.user_id
-            ORDER BY c.course_name ASC
         """
-        params = ()
+        params = []
+        if search_query:
+            sql += " WHERE (c.course_name LIKE %s OR c.course_code LIKE %s OR u.full_name LIKE %s) "
+            term = f"%{search_query}%"
+            params.extend([term, term, term])
+            
+        sql += " ORDER BY c.course_name ASC"
+
         if page is not None and per_page is not None:
             offset = (page - 1) * per_page
             sql += " LIMIT %s OFFSET %s"
-            params = (per_page, offset)
+            params.extend([per_page, offset])
             
-        rows = self.execute_query(sql, params, fetch_all=True)
-        return [CourseClass.from_db_row(row) for row in rows]
+        conn = self.db.get_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(sql, tuple(params))
+            rows = cursor.fetchall()
+            cursor.execute("SELECT FOUND_ROWS() as total")
+            total = cursor.fetchone()['total']
+            return [CourseClass.from_db_row(row) for row in rows], total
+        finally:
+            conn.close()
 
     def get_all(self):
         return self.get_all_details()
@@ -66,10 +80,11 @@ class ClassRepository(BaseRepository):
     def get_schedule_by_lecturer(self, lecturer_id):
         """Retrieves lecturer's teaching schedule"""
         sql = """
-            SELECT cc.*, c.course_name, c.course_code,
+            SELECT cc.*, c.course_name, c.course_code, s.name as semester_name, s.status as semester_status, s.end_date as semester_end_date,
                    (SELECT COUNT(*) FROM Grades WHERE class_id = cc.class_id) as enrolled_count
             FROM Course_Classes cc
             JOIN Courses c ON cc.course_id = c.course_id
+            JOIN Semesters s ON cc.semester_id = s.semester_id
             WHERE cc.lecturer_id = %s
             ORDER BY cc.schedule # Order by schedule
         """

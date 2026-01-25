@@ -64,7 +64,7 @@ class LecturerClassManager(ctk.CTkFrame):
             ctk.CTkLabel(f, text=txt, font=("Arial", 11, "bold"), text_color="#374151", anchor="w").place(relx=0, rely=0.5, anchor="w")
 
         # List
-        scroll = ctk.CTkScrollableFrame(self.content, fg_color="transparent")
+        scroll = ctk.CTkFrame(self.content, fg_color="transparent")
         scroll.pack(fill="both", expand=True, padx=20, pady=(0, 20))
 
         ctk.CTkLabel(scroll, text="Loading roster...", text_color="gray").pack(pady=20)

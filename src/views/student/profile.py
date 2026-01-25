@@ -107,6 +107,15 @@ class ProfileView(ctk.CTkFrame):
             command=self.toggle_edit_mode
         )
         self.edit_btn.pack(side="right", anchor="c")
+        
+        # Cancel Button (Hidden initially)
+        self.cancel_btn = ctk.CTkButton(
+            header, text="Cancel", 
+            fg_color="white", text_color="#EF4444", 
+            hover_color="#FEF2F2", border_width=1, border_color="#EF4444",
+            width=100, height=40, font=("Arial", 13, "bold"),
+            command=self.cancel_edit
+        )
 
     def create_form_grid(self):
         grid = ctk.CTkFrame(self.card, fg_color="transparent")
@@ -174,6 +183,7 @@ class ProfileView(ctk.CTkFrame):
                 fg_color=self.COLOR_PRIMARY, text_color="white",
                 hover_color="#115E59", border_width=0
             )
+            self.cancel_btn.pack(side="right", anchor="c", padx=(0, 10)) # Show cancel button
             
             # Unlock fields
             for key, ent in self.entries.items():
@@ -182,6 +192,24 @@ class ProfileView(ctk.CTkFrame):
         else:
             # SAVE CHANGES
             self.save_data()
+
+    def cancel_edit(self):
+        """Revert changes and exit edit mode"""
+        self.is_editing = False
+        self.edit_btn.configure(
+            text="Edit Profile", 
+            fg_color="white", text_color="#374151",
+            hover_color="#F3F4F6", border_width=1, border_color="#D1D5DB"
+        )
+        self.cancel_btn.pack_forget() # Hide cancel button
+        
+        # Reset fields to original values
+        for key, ent in self.entries.items():
+            ent.configure(state="normal")
+            ent.delete(0, "end")
+            val = self.student_info.get(key, "")
+            ent.insert(0, str(val))
+            ent.configure(state="disabled", fg_color=self.COLOR_BG_READONLY, border_color="#E5E7EB")
 
     def save_data(self):
         # 1. Collect Data
@@ -214,6 +242,7 @@ class ProfileView(ctk.CTkFrame):
                     fg_color="white", text_color="#374151",
                     hover_color="#F3F4F6", border_width=1, border_color="#D1D5DB"
                 )
+                self.cancel_btn.pack_forget()
                 
                 # Lock fields
                 for ent in self.entries.values():

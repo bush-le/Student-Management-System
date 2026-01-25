@@ -41,6 +41,10 @@ class CoursesFrame(ctk.CTkFrame):
             width=300, height=40, border_color="#E5E7EB", border_width=1
         )
         self.search_ent.pack(side="left")
+        self.search_ent.bind("<Return>", lambda e: self.perform_search())
+        
+        btn_search = ctk.CTkButton(toolbar, text="Search", width=60, height=40, fg_color="#0F766E", command=self.perform_search)
+        btn_search.pack(side="left", padx=5)
         
         btn_add = ctk.CTkButton(
             toolbar, text="+ Add Course", fg_color="#0F766E", hover_color="#115E59", height=40,
@@ -96,13 +100,18 @@ class CoursesFrame(ctk.CTkFrame):
             tk_root=self.winfo_toplevel()
         )
 
+    def perform_search(self):
+        self.current_page = 1
+        self.load_data()
+
     def _fetch_courses(self):
         try:
+            search_query = self.search_ent.get().strip()
             # 1. Get current page data
-            courses = self.controller.get_all_courses(page=self.current_page, per_page=self.per_page)
+            courses, total_items = self.controller.get_all_courses(
+                page=self.current_page, per_page=self.per_page, search_query=search_query
+            )
             
-            # 2. Get total count to calculate total_pages
-            total_items = self.controller.get_total_courses()
             total_pages = (total_items + self.per_page - 1) // self.per_page
             
             return {
@@ -211,7 +220,7 @@ class CourseDialog(ctk.CTkToplevel):
         self.callback = callback
         self.data = data
         self.title(title)
-        self.geometry("700x450")
+        self.geometry("700x550")
         self.resizable(False, False)
         self.transient(parent)
         self.configure(fg_color="white")
@@ -220,31 +229,32 @@ class CourseDialog(ctk.CTkToplevel):
         # Form container
         form = ctk.CTkFrame(self, fg_color="transparent")
         form.pack(fill="both", expand=True, padx=40)
+        form.grid_columnconfigure(0, weight=1)
+        form.grid_columnconfigure(1, weight=1)
 
-        self.ent_code = self._add_field(form, 0, 0, "Course Code", "e.g. CS101", width=200)
-        self.ent_name = self._add_field(form, 0, 1, "Course Name", "Introduction to Programming", width=400)
-        self.ent_credits = self._add_field(form, 1, 0, "Credits", "3", width=200)
+        self.ent_code = self._add_field(form, 0, 0, "Course Code", "e.g. CS101")
+        self.ent_name = self._add_field(form, 0, 1, "Course Name", "Introduction to Programming")
+        self.ent_credits = self._add_field(form, 1, 0, "Credits", "3")
         
-        ctk.CTkLabel(form, text="Course Type", font=("Arial", 12, "bold"), text_color="#374151").grid(row=2, column=1, sticky="w", pady=(10, 5)) # Course type label
+        ctk.CTkLabel(form, text="Course Type", font=("Arial", 12, "bold"), text_color="#374151").grid(row=2, column=1, sticky="w", pady=(10, 5), padx=(10, 0)) # Course type label
         self.combo_type = ctk.CTkComboBox(
-            form, values=["Core", "Elective", "Major Required"], 
-            width=200, height=40, border_color="#E5E7EB", fg_color="white", text_color="black"
+            form, values=["Core", "Elective", "Major Required"], height=40, border_color="#E5E7EB", fg_color="white", text_color="black"
         )
-        self.combo_type.grid(row=3, column=1, sticky="w", padx=(10, 0))
+        self.combo_type.grid(row=3, column=1, sticky="ew", padx=(10, 0))
 
         ctk.CTkLabel(form, text="Description", font=("Arial", 12, "bold"), text_color="#374151").grid(row=4, column=0, sticky="w", pady=(10, 5)) # Description label
-        self.txt_desc = ctk.CTkTextbox(form, height=60, width=620, border_color="#E5E7EB", border_width=1, fg_color="white", text_color="black")
-        self.txt_desc.grid(row=5, column=0, columnspan=2, sticky="w")
+        self.txt_desc = ctk.CTkTextbox(form, height=60, border_color="#E5E7EB", border_width=1, fg_color="white", text_color="black")
+        self.txt_desc.grid(row=5, column=0, columnspan=2, sticky="ew")
 
         ctk.CTkLabel(form, text="Prerequisites (codes)", font=("Arial", 12, "bold"), text_color="#374151").grid(row=6, column=0, columnspan=2, sticky="w", pady=(10, 5)) # Prerequisites label
-        self.ent_prereq = ctk.CTkEntry(form, placeholder_text="e.g. CS101, MATH101", width=620, height=40, border_color="#E5E7EB")
-        self.ent_prereq.grid(row=7, column=0, columnspan=2, sticky="w")
+        self.ent_prereq = ctk.CTkEntry(form, placeholder_text="e.g. CS101, MATH101", height=40, border_color="#E5E7EB")
+        self.ent_prereq.grid(row=7, column=0, columnspan=2, sticky="ew")
 
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(fill="x", padx=40, pady=30)
         
-        ctk.CTkButton(btn_frame, text="Cancel", fg_color="white", border_color="#D1D5DB", text_color="black", hover_color="#F3F4F6", width=100, height=40, command=self.destroy).pack(side="left")
-        ctk.CTkButton(btn_frame, text="Save Course", fg_color="#0F766E", hover_color="#115E59", width=140, height=40, command=self.save).pack(side="right")
+        ctk.CTkButton(btn_frame, text="Cancel", fg_color="white", border_color="#D1D5DB", border_width=1, text_color="black", hover_color="#F3F4F6", width=100, height=40, command=self.destroy).pack(side="left")
+        ctk.CTkButton(btn_frame, text="Save Course", fg_color="#0F766E", hover_color="#115E59", width=140, height=40, font=("Arial", 13, "bold"), command=self.save).pack(side="right")
 
         if data:
             self.ent_code.insert(0, data.course_code)
@@ -259,10 +269,10 @@ class CourseDialog(ctk.CTkToplevel):
         self.lift()
         self.after(100, lambda: [self.focus_force(), self.grab_set()])
 
-    def _add_field(self, parent, r, c, label, placeholder, width=300):
-        ctk.CTkLabel(parent, text=label, font=("Arial", 12, "bold"), text_color="#374151").grid(row=r*2, column=c, sticky="w", pady=(10, 5))
-        ent = ctk.CTkEntry(parent, placeholder_text=placeholder, width=width, height=40, border_color="#E5E7EB")
-        ent.grid(row=r*2+1, column=c, sticky="w", padx=(0 if c==0 else 10, 0))
+    def _add_field(self, parent, r, c, label, placeholder):
+        ctk.CTkLabel(parent, text=label, font=("Arial", 12, "bold"), text_color="#374151").grid(row=r*2, column=c, sticky="w", pady=(10, 5), padx=(0 if c==0 else 10, 0))
+        ent = ctk.CTkEntry(parent, placeholder_text=placeholder, height=40, border_color="#E5E7EB")
+        ent.grid(row=r*2+1, column=c, sticky="ew", padx=(0 if c==0 else 10, 0))
         return ent
 
     def save(self):

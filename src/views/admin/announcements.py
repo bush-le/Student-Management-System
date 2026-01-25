@@ -36,6 +36,12 @@ class AnnouncementsFrame(ctk.CTkFrame):
         ctk.CTkLabel(title_box, text="ANNOUNCEMENTS", font=("Arial", 20, "bold"), text_color="#111827").pack(anchor="w")
         ctk.CTkLabel(title_box, text="Manage system-wide notifications", font=("Arial", 12), text_color="gray").pack(anchor="w") # Subtitle for announcements
         
+        # Search Box
+        self.search_ent = ctk.CTkEntry(header, placeholder_text="Search title...", width=200, height=35, border_color="#E5E7EB")
+        self.search_ent.pack(side="left", padx=(40, 10))
+        self.search_ent.bind("<Return>", lambda e: self.perform_search())
+        ctk.CTkButton(header, text="Search", width=60, height=35, fg_color="#0F766E", command=self.perform_search).pack(side="left")
+
         # Add Button
         ctk.CTkButton(
             header, text="+ New Announcement", 
@@ -44,12 +50,16 @@ class AnnouncementsFrame(ctk.CTkFrame):
             command=self.open_add_dialog
         ).pack(side="right")
 
+    def perform_search(self):
+        self.load_data_async()
+
     def load_data_async(self):
         for w in self.scroll_area.winfo_children(): w.destroy()
         ctk.CTkLabel(self.scroll_area, text="Loading...", text_color="gray").pack(pady=20)
         
+        search_query = self.search_ent.get().strip()
         run_in_background(
-            self.controller.get_all_announcements,
+            lambda: self.controller.get_all_announcements(search_query=search_query),
             self._render_data,
             tk_root=self.winfo_toplevel()
         )

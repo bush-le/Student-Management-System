@@ -274,7 +274,7 @@ class StudentController:
         return transcript[:limit]
 
     def get_latest_announcements(self, limit=3):
-        return self.ann_repo.get_recent(limit)
+        return self.ann_repo.get_recent(user_id=self.user_id, limit=limit)
 
     def get_dashboard_academic_summary(self):
         """

@@ -102,8 +102,15 @@ class GradingView(ctk.CTkFrame):
                 v1 = float(e1.get() or 0)
                 v2 = float(e2.get() or 0)
                 v3 = float(e3.get() or 0)
+
+                if not (0 <= v1 <= 10 and 0 <= v2 <= 10 and 0 <= v3 <= 10):
+                    messagebox.showerror("Error", "Invalid input: Please enter a score between 0 and 10.")
+                    return
+
                 data_to_save.append((sid, v1, v2, v3))
-            except ValueError: pass
+            except ValueError:
+                messagebox.showerror("Error", "Invalid input: Please enter a score between 0 and 10.")
+                return
         
         def _save_task():
             # OPTIMIZATION: Use bulk update instead of looping input_grade

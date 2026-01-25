@@ -1,4 +1,5 @@
 import customtkinter as ctk
+import calendar
 from datetime import datetime, timedelta
 from controllers.lecturer_controller import LecturerController
 from utils.threading_helper import run_in_background
@@ -19,6 +20,7 @@ class LecturerScheduleFrame(ctk.CTkFrame):
 
         # State: Current date being viewed
         self.current_date = datetime.now()
+        self.view_mode = "Week" # Default view
         
         # Store references
         self.cells = {}         # Cells containing cards
@@ -26,13 +28,13 @@ class LecturerScheduleFrame(ctk.CTkFrame):
 
         self.create_header()
 
-        self.create_grid_structure()
+        # Container for the grid (Week or Month)
+        self.grid_container = ctk.CTkFrame(self, fg_color="white", border_width=1, border_color="#E5E7EB")
+        self.grid_container.pack(fill="both", expand=True)
 
         self.create_legend()
-
         self.load_schedule_async()
-
-        self.update_week_view()
+        self.update_view()
 
     # ==================================================
     # 1. HEADER & NAVIGATION LOGIC
@@ -49,12 +51,17 @@ class LecturerScheduleFrame(ctk.CTkFrame):
             state="disabled"
         )
         self.btn_date_display.pack(side="left")
+        
+        # View Selector (Week / Month)
+        self.view_selector = ctk.CTkSegmentedButton(header, values=["Week", "Month"], command=self.on_view_change, width=120)
+        self.view_selector.set("Week")
+        self.view_selector.pack(side="left", padx=15)
 
         # Navigation Controls (Top right)
         nav = ctk.CTkFrame(header, fg_color="transparent")
         nav.pack(side="right")
         
-        self._btn_nav(nav, "<", command=self.prev_week)
+        self._btn_nav(nav, "<", command=self.prev_period)
         
         # Refresh Button
         ctk.CTkButton(
@@ -69,7 +76,7 @@ class LecturerScheduleFrame(ctk.CTkFrame):
             command=self.go_today
         ).pack(side="left", padx=5)
         
-        self._btn_nav(nav, ">", command=self.next_week)
+        self._btn_nav(nav, ">", command=self.next_period)
 
     def _btn_nav(self, parent, txt, command):
         ctk.CTkButton(
@@ -78,50 +85,67 @@ class LecturerScheduleFrame(ctk.CTkFrame):
             command=command
         ).pack(side="left")
 
-    # --- LOGIC ĐIỀU HƯỚNG ---
-    def prev_week(self):
-        self.current_date -= timedelta(days=7)
-        self.update_week_view()
+    def on_view_change(self, value):
+        self.view_mode = value
+        self.update_view()
 
-    def next_week(self):
-        self.current_date += timedelta(days=7)
-        self.update_week_view()
+    # --- LOGIC ĐIỀU HƯỚNG ---
+    def prev_period(self):
+        if self.view_mode == "Week":
+            self.current_date -= timedelta(days=7)
+        else:
+            # Go to previous month
+            first = self.current_date.replace(day=1)
+            self.current_date = (first - timedelta(days=1)).replace(day=1)
+        self.update_view()
+
+    def next_period(self):
+        if self.view_mode == "Week":
+            self.current_date += timedelta(days=7)
+        else:
+            # Go to next month
+            days_in_month = calendar.monthrange(self.current_date.year, self.current_date.month)[1]
+            self.current_date = (self.current_date.replace(day=1) + timedelta(days=days_in_month))
+        self.update_view()
 
     def go_today(self):
         self.current_date = datetime.now()
-        self.update_week_view()
+        self.update_view()
 
-    def update_week_view(self):
-        """Calculate date and update UI"""
-        # Find the Monday of the week
-        start_of_week = self.current_date - timedelta(days=self.current_date.weekday())
-        
-        # Update month display button
-        self.btn_date_display.configure(text=start_of_week.strftime("%B %Y"))
+    def update_view(self):
+        """Rebuilds the grid based on view mode and updates header"""
+        # Clear existing grid
+        for widget in self.grid_container.winfo_children():
+            widget.destroy()
+        self.cells = {}
+        self.day_labels = []
 
-        # Update header columns (Mon 05/01...)
-        days_name = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"]
-        
-        for i, lbl in enumerate(self.day_labels):
-            current_day = start_of_week + timedelta(days=i)
-            day_str = current_day.strftime("%d/%m")
+        if self.view_mode == "Week":
+            self.build_week_grid()
             
-            lbl.configure(text=f"{days_name[i]}\n{day_str}")
+            # Update Header Text & Labels
+            start_of_week = self.current_date - timedelta(days=self.current_date.weekday())
+            self.btn_date_display.configure(text=start_of_week.strftime("%B %Y"))
             
-            # Highlight today's date
-            if current_day.date() == datetime.now().date():
-                lbl.configure(fg_color="#F59E0B")
-            else:
-                bg = "#F59E0B" if i >= 5 else self.COLOR_HEADER
-                lbl.configure(fg_color=bg)
+            days_name = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"]
+            for i, lbl in enumerate(self.day_labels):
+                current_day = start_of_week + timedelta(days=i)
+                day_str = current_day.strftime("%d/%m")
+                lbl.configure(text=f"{days_name[i]}\n{day_str}")
+                if current_day.date() == datetime.now().date():
+                    lbl.configure(fg_color="#F59E0B")
+        else:
+            self.build_month_grid()
+            self.btn_date_display.configure(text=self.current_date.strftime("%B %Y"))
+
+        # Re-render data if available
+        if hasattr(self, 'cells_data'):
+            self._render_schedule(self.cells_data)
 
     # ==================================================
     # 2. GRID STRUCTURE (4 SLOTS COMPACT)
     # ==================================================
-    def create_grid_structure(self):
-        self.grid_container = ctk.CTkFrame(self, fg_color="white", border_width=1, border_color="#E5E7EB")
-        self.grid_container.pack(fill="both", expand=True)
-
+    def build_week_grid(self):
         # Column 0 (Session): Fixed width
         self.grid_container.grid_columnconfigure(0, weight=0, minsize=80)
         # Columns 1-7 (Days): Expand equally
@@ -156,6 +180,35 @@ class LecturerScheduleFrame(ctk.CTkFrame):
                 # Store references
                 self.cells[(c-1, r)] = cell
 
+    def build_month_grid(self):
+        # 7 Columns (Mon-Sun)
+        for i in range(7):
+            self.grid_container.grid_columnconfigure(i, weight=1)
+        
+        # Header Row
+        days_name = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+        for i, d in enumerate(days_name):
+            self._create_header_cell(0, i, d, bg_color=self.COLOR_HEADER)
+
+        # Calendar Days
+        cal = calendar.monthcalendar(self.current_date.year, self.current_date.month)
+        
+        for r, week in enumerate(cal):
+            self.grid_container.grid_rowconfigure(r+1, weight=1)
+            for c, day in enumerate(week):
+                if day == 0:
+                    bg = "#F9FAFB" # Empty
+                    txt = ""
+                else:
+                    bg = "white"
+                    txt = str(day)
+                
+                cell = ctk.CTkFrame(self.grid_container, fg_color=bg, border_width=1, border_color="#F3F4F6", corner_radius=0)
+                cell.grid(row=r+1, column=c, sticky="nsew")
+                if day != 0:
+                    ctk.CTkLabel(cell, text=txt, font=("Arial", 10, "bold"), text_color="#374151").pack(anchor="ne", padx=5, pady=2)
+                    self.cells[day] = cell # Store by day of month
+
     def create_legend(self):
         frame = ctk.CTkFrame(self, fg_color="transparent")
         frame.pack(pady=10)
@@ -173,7 +226,7 @@ class LecturerScheduleFrame(ctk.CTkFrame):
     # ==================================================
     def load_schedule_async(self, force=False):
         run_in_background(
-            lambda: self.controller.get_teaching_schedule(force_update=force),
+            lambda: self.controller.get_teaching_schedule(force_update=force, active_only=True),
             self._render_schedule,
             tk_root=self.winfo_toplevel()
         )
@@ -184,6 +237,10 @@ class LecturerScheduleFrame(ctk.CTkFrame):
 
         days_map = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
         self.cells_data = data # Store data if needed for refresh
+
+        if self.view_mode == "Month":
+            self._render_month_data(data, days_map)
+            return
 
         for item in data:
             raw_sched = item.get('schedule', '').lower()
@@ -219,6 +276,28 @@ class LecturerScheduleFrame(ctk.CTkFrame):
             except Exception:
                 continue
 
+    def _render_month_data(self, data, days_map):
+        # Get matrix of current month
+        cal = calendar.monthcalendar(self.current_date.year, self.current_date.month)
+        
+        # Map weekday index to list of days in this month
+        # e.g. 0 (Mon) -> [1, 8, 15, 22, 29]
+        weekday_dates = {i: [] for i in range(7)}
+        for week in cal:
+            for day_idx, day_num in enumerate(week):
+                if day_num != 0:
+                    weekday_dates[day_idx].append(day_num)
+
+        for item in data:
+            raw_sched = item.get('schedule', '').lower()
+            for i, d in enumerate(days_map):
+                if d in raw_sched:
+                    # This class happens on weekday 'i'
+                    # Render it for all dates in this month that match 'i'
+                    for date_num in weekday_dates[i]:
+                        if date_num in self.cells:
+                            self._render_mini_dot(self.cells[date_num], item)
+
     def _render_card(self, parent, data):
         # Clear old widgets
         for w in parent.winfo_children():
@@ -237,6 +316,7 @@ class LecturerScheduleFrame(ctk.CTkFrame):
         ctk.CTkLabel(content, text=data.get('course_name', 'Unknown'), font=("Arial", 10, "bold"), text_color=self.COLOR_TEXT_MAIN, wraplength=120, justify="left").pack(anchor="w")
         
         ctk.CTkLabel(content, text=f"ID: {data.get('class_id', '')}", font=("Arial", 9, "bold"), text_color="#047857").pack(anchor="w")
+        ctk.CTkLabel(content, text=f"{data.get('semester_name', '')}", font=("Arial", 9, "italic"), text_color="#6B7280").pack(anchor="w")
         
         raw_sched = data.get('schedule', '')
         time_only = raw_sched.split(' ', 1)[1] if ' ' in raw_sched else ""
@@ -247,6 +327,12 @@ class LecturerScheduleFrame(ctk.CTkFrame):
         # Enrollment (Unlike students, lecturers need to see enrollment count)
         enrolled = data.get('enrolled_count', 0)
         ctk.CTkLabel(content, text=f"Students: {enrolled}", font=("Arial", 9, "bold"), text_color="#059669").pack(anchor="w", pady=(2,0))
+
+    def _render_mini_dot(self, parent, data):
+        # Simple list item for month view
+        f = ctk.CTkFrame(parent, fg_color=self.COLOR_CARD_BG, height=20, corner_radius=3)
+        f.pack(fill="x", padx=2, pady=1)
+        ctk.CTkLabel(f, text=data.get('course_name', 'Class'), font=("Arial", 9), text_color=self.COLOR_TEXT_MAIN).pack(side="left", padx=2)
 
     # ==================================================
     # 4. HELPERS

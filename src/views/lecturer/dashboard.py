@@ -327,8 +327,15 @@ class LecturerDashboard(ctk.CTkFrame):
         popup.new = self._create_popup_input(bg, "New Password")
         popup.conf = self._create_popup_input(bg, "Confirm New Password")
         
-        ctk.CTkButton(bg, text="Update Password", fg_color=self.COLOR_PRIMARY, height=45, font=("Arial", 14, "bold"), 
-                      command=lambda: self.handle_popup_submit(popup)).pack(pady=30, padx=40, fill="x")
+        btn_frame = ctk.CTkFrame(bg, fg_color="transparent")
+        btn_frame.pack(pady=30, padx=40, fill="x")
+        
+        ctk.CTkButton(btn_frame, text="Cancel", fg_color="white", border_color="#D1D5DB", border_width=1, 
+                      text_color="black", hover_color="#F3F4F6", height=45, width=100,
+                      command=popup.destroy).pack(side="left", expand=True, fill="x", padx=(0, 5))
+        
+        ctk.CTkButton(btn_frame, text="Update Password", fg_color=self.COLOR_PRIMARY, height=45, font=("Arial", 14, "bold"), 
+                      command=lambda: self.handle_popup_submit(popup)).pack(side="right", expand=True, fill="x", padx=(5, 0))
         
         popup.lift()
         popup.focus_force()

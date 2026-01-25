@@ -40,6 +40,12 @@ class ClassesFrame(ctk.CTkFrame):
         title_box.pack(side="left")
         ctk.CTkLabel(title_box, text="ACTIVE CLASSES", font=("Arial", 20, "bold"), text_color="#111827").pack(anchor="w")
         ctk.CTkLabel(title_box, text="Manage class schedules and assignments", font=("Arial", 12), text_color="gray").pack(anchor="w")
+        
+        # Search Box
+        self.search_ent = ctk.CTkEntry(header, placeholder_text="Search class...", width=200, height=35, border_color="#E5E7EB")
+        self.search_ent.pack(side="left", padx=(20, 10))
+        self.search_ent.bind("<Return>", lambda e: self.perform_search())
+        ctk.CTkButton(header, text="Search", width=60, height=35, fg_color="#0F766E", command=self.perform_search).pack(side="left")
 
         # Add Button
         ctk.CTkButton(
@@ -94,14 +100,17 @@ class ClassesFrame(ctk.CTkFrame):
             on_complete=self._render_classes,
             tk_root=self.winfo_toplevel()
         )
+    
+    def perform_search(self):
+        self.current_page = 1
+        self.load_data()
 
     def _fetch_classes(self):
         try:
-            # 1. Get current page data (Server-side pagination)
-            classes = self.controller.get_all_classes_details(page=self.current_page, per_page=self.per_page)
+            search_query = self.search_ent.get().strip()
+            # 1. Get current page data AND total count
+            classes, total_items = self.controller.get_all_classes_details(page=self.current_page, per_page=self.per_page, search_query=search_query)
             
-            # 2. Get total count
-            total_items = self.controller.get_total_classes()
             total_pages = (total_items + self.per_page - 1) // self.per_page
             
             return {
@@ -240,7 +249,7 @@ class ClassDialog(ctk.CTkToplevel):
         ctk.CTkLabel(form, text="Select Course", font=("Arial", 12, "bold"), text_color="#374151").pack(anchor="w", pady=(5, 5))
         
         # Fetch ALL courses for dropdown (disable pagination)
-        courses = self.controller.get_all_courses(page=None, per_page=None)
+        courses, _ = self.controller.get_all_courses(page=None, per_page=None)
         # Create a map for robust selection
         self.course_map = {f"{c.course_code} - {c.course_name}": c.course_id for c in courses}
         
@@ -395,7 +404,7 @@ class AssignLecturerDialog(ctk.CTkToplevel):
         self.class_data = class_data
         
         self.title("Assign Lecturer")
-        self.geometry("500x450")
+        self.geometry("500x550")
         self.resizable(False, False)
         self.transient(parent)
         self.configure(fg_color="white")
@@ -414,7 +423,7 @@ class AssignLecturerDialog(ctk.CTkToplevel):
         ctk.CTkLabel(self, text="Select Lecturer", font=("Arial", 12, "bold"), text_color="#374151").pack(anchor="w", padx=30)
         
         # Fetch ALL lecturers for dropdown (disable pagination)
-        lecturers = self.controller.get_all_lecturers(page=None, per_page=None)
+        lecturers, _ = self.controller.get_all_lecturers(page=None, per_page=None)
         self.lec_map = {f"{l.full_name} ({l.lecturer_code})": l.lecturer_id for l in lecturers}
         
         self.combo_lec = ctk.CTkComboBox(
@@ -435,7 +444,7 @@ class AssignLecturerDialog(ctk.CTkToplevel):
         ).pack(side="left")
         
         ctk.CTkButton(
-            btn_frame, text="Confirm Assignment", fg_color="#0F766E", hover_color="#115E59", 
+            btn_frame, text="Save Assignment", fg_color="#0F766E", hover_color="#115E59", 
             width=160, height=40, font=("Arial", 13, "bold"),
             command=self.confirm # Confirm assignment button 
         ).pack(side="right")

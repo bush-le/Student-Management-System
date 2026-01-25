@@ -59,11 +59,11 @@ class LoginView(ctk.CTkFrame):
 
         # Inputs
         ctk.CTkLabel(form, text="Email Address", font=("Arial", 12, "bold"), text_color="#374151").grid(row=3, column=0, sticky="w", pady=(10, 5))
-        self.email_entry = ctk.CTkEntry(form, placeholder_text="student@test.com", width=320, height=40, border_color="#D1D5DB")
+        self.email_entry = ctk.CTkEntry(form, placeholder_text="youremail@uth.edu.vn", width=320, height=40, border_color="#D1D5DB")
         self.email_entry.grid(row=4, column=0, sticky="ew")
 
         ctk.CTkLabel(form, text="Password", font=("Arial", 12, "bold"), text_color="#374151").grid(row=5, column=0, sticky="w", pady=(15, 5))
-        self.pass_entry = ctk.CTkEntry(form, placeholder_text="••••••••", show="•", width=320, height=40, border_color="#D1D5DB")
+        self.pass_entry = ctk.CTkEntry(form, placeholder_text="password", show="•", width=320, height=40, border_color="#D1D5DB")
         self.pass_entry.grid(row=6, column=0, sticky="ew")
 
         # FORGOT PASSWORD BUTTON -> Calls show_forgot_view
@@ -89,6 +89,7 @@ class LoginView(ctk.CTkFrame):
 
     # --- LOGIN LOGIC ---
     def on_login_click(self):
+        self.error_frame.grid_forget() 
         email = self.email_entry.get()
         password = self.pass_entry.get()
         
@@ -103,6 +104,8 @@ class LoginView(ctk.CTkFrame):
             if user:
                 self.app.show_dashboard(user)
             else:
-                messagebox.showerror("Login Failed", message)
+                # Hiển thị lỗi ngay trên form thay vì popup
+                self.error_label.configure(text=message)
+                self.error_frame.grid(row=2, column=0, sticky="ew", pady=(0, 10))
 
         run_in_background(_login_task, _on_login_complete, tk_root=self.winfo_toplevel())

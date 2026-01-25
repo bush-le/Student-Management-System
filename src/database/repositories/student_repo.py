@@ -3,7 +3,7 @@ from models.student import Student
 from utils.cache import cache_result
 
 class StudentRepository(BaseRepository):
-    def get_all(self, page=1, per_page=50):
+    def get_all(self, page=1, per_page=50, search_query=None):
         """
         Server-side pagination that also returns the total count of items
         using SQL_CALC_FOUND_ROWS to avoid a separate COUNT(*) query.
@@ -15,9 +15,16 @@ class StudentRepository(BaseRepository):
             FROM Students s
             JOIN Users u ON s.user_id = u.user_id
             LEFT JOIN Departments d ON s.dept_id = d.dept_id
-            ORDER BY s.student_code ASC
-            LIMIT %s OFFSET %s
         """
+        params = []
+        if search_query:
+            sql += " WHERE (s.student_code LIKE %s OR u.full_name LIKE %s OR u.email LIKE %s) "
+            term = f"%{search_query}%"
+            params.extend([term, term, term])
+            
+        sql += " ORDER BY s.student_code ASC LIMIT %s OFFSET %s"
+        params.extend([per_page, offset])
+
         total_count_sql = "SELECT FOUND_ROWS() as total"
 
         conn = None
@@ -27,7 +34,7 @@ class StudentRepository(BaseRepository):
             cursor = conn.cursor(dictionary=True)
 
             # Execute the main query to get the page data
-            cursor.execute(sql, (per_page, offset))
+            cursor.execute(sql, tuple(params))
             results = cursor.fetchall()
             students = [Student.from_db_row(row) for row in results]
 

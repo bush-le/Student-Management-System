@@ -8,6 +8,9 @@ class SemestersFrame(ctk.CTkFrame):
         super().__init__(parent, fg_color="transparent")
         self.controller = controller
         
+        # Fixed column widths for alignment [Name, Start, End, Status, Actions]
+        self.col_widths = [250, 150, 150, 120, 150]
+        
         # 1. Toolbar
         self.create_toolbar()
 
@@ -15,7 +18,7 @@ class SemestersFrame(ctk.CTkFrame):
         self.create_table_header()
 
         # 3. List Container
-        self.scroll_area = ctk.CTkScrollableFrame(self, fg_color="white", corner_radius=10)
+        self.scroll_area = ctk.CTkFrame(self, fg_color="white", corner_radius=10)
         self.scroll_area.pack(fill="both", expand=True, pady=(0, 20))
 
         # 4. Load Data
@@ -30,6 +33,10 @@ class SemestersFrame(ctk.CTkFrame):
             width=300, height=40, border_color="#E5E7EB", border_width=1
         )
         self.search_ent.pack(side="left")
+        self.search_ent.bind("<Return>", lambda e: self.perform_search())
+        
+        btn_search = ctk.CTkButton(toolbar, text="Search", width=60, height=40, fg_color="#0F766E", command=self.perform_search)
+        btn_search.pack(side="left", padx=5)
         
         # Add Button
         btn_add = ctk.CTkButton(
@@ -42,22 +49,26 @@ class SemestersFrame(ctk.CTkFrame):
     def create_table_header(self):
         h_frame = ctk.CTkFrame(self, fg_color="#E5E7EB", height=40, corner_radius=5)
         h_frame.pack(fill="x", pady=(0, 5))
+        h_frame.grid_propagate(False)
         
-        # Columns: Name, Start, End, Status, Actions
-        cols = [("SEMESTER NAME", 3), ("START DATE", 1), ("END DATE", 1), ("STATUS", 1), ("ACTIONS", 2)]
+        cols = ["SEMESTER NAME", "START DATE", "END DATE", "STATUS", "ACTIONS"]
         
-        for i, (text, w) in enumerate(cols):
-            h_frame.grid_columnconfigure(i, weight=w)
+        for i, text in enumerate(cols):
             ctk.CTkLabel(
-                h_frame, text=text, font=("Arial", 11, "bold"), text_color="#374151", anchor="w"
+                h_frame, text=text, font=("Arial", 11, "bold"), text_color="#374151", anchor="w",
+                width=self.col_widths[i]
             ).grid(row=0, column=i, sticky="ew", padx=10, pady=8)
+
+    def perform_search(self):
+        self.load_data_async()
 
     def load_data_async(self):
         for widget in self.scroll_area.winfo_children(): widget.destroy()
         ctk.CTkLabel(self.scroll_area, text="Loading...", text_color="gray").pack(pady=20)
         
+        search_query = self.search_ent.get().strip()
         run_in_background(
-            self.controller.get_all_semesters,
+            lambda: self.controller.get_all_semesters(search_query=search_query),
             self._render_data,
             tk_root=self.winfo_toplevel()
         )
@@ -75,32 +86,32 @@ class SemestersFrame(ctk.CTkFrame):
         # Zebra striping
         bg_color = "white" if idx % 2 == 0 else "#F9FAFB"
         
-        row = ctk.CTkFrame(self.scroll_area, fg_color=bg_color, corner_radius=0, height=45)
-        row.pack(fill="x")
+        row = ctk.CTkFrame(self.scroll_area, fg_color=bg_color, corner_radius=0, height=30)
+        row.pack(fill="x", pady=0)
+        row.grid_propagate(False)
+        row.grid_rowconfigure(0, weight=1)
         
-        # Grid weights match Header
-        weights = [3, 1, 1, 1, 2]
-        for i, w in enumerate(weights): row.grid_columnconfigure(i, weight=w)
-
         # Data Cells
-        ctk.CTkLabel(row, text=data.name, font=("Arial", 12, "bold"), text_color="#333", anchor="w").grid(row=0, column=0, sticky="ew", padx=10, pady=12)
-        ctk.CTkLabel(row, text=str(data.start_date), font=("Arial", 12), text_color="#555", anchor="w").grid(row=0, column=1, sticky="ew", padx=10)
-        ctk.CTkLabel(row, text=str(data.end_date), font=("Arial", 12), text_color="#555", anchor="w").grid(row=0, column=2, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=data.name, font=("Arial", 12, "bold"), text_color="#333", anchor="w", width=self.col_widths[0]).grid(row=0, column=0, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=str(data.start_date), font=("Arial", 12), text_color="#555", anchor="w", width=self.col_widths[1]).grid(row=0, column=1, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=str(data.end_date), font=("Arial", 12), text_color="#555", anchor="w", width=self.col_widths[2]).grid(row=0, column=2, sticky="ew", padx=10)
+        
         # Status
         status = data.status.upper()
         status_col = "#059669" if status == "OPEN" else "#9CA3AF"
-        ctk.CTkLabel(row, text=status, font=("Arial", 11, "bold"), text_color=status_col, anchor="w").grid(row=0, column=3, sticky="ew", padx=10)
+        ctk.CTkLabel(row, text=status, font=("Arial", 11, "bold"), text_color=status_col, anchor="w", width=self.col_widths[3]).grid(row=0, column=3, sticky="ew", padx=10)
 
         # Actions
-        actions = ctk.CTkFrame(row, fg_color="transparent")
-        actions.grid(row=0, column=4, sticky="w", padx=5)
+        actions = ctk.CTkFrame(row, fg_color="transparent", width=self.col_widths[4])
+        actions.grid(row=0, column=4, sticky="ew", padx=5)
+        actions.pack_propagate(False)
         
         self._action_btn(actions, "Edit", "#3B82F6", lambda: self.open_edit_dialog(data))
         self._action_btn(actions, "Del", "#EF4444", lambda: self.delete_item(data.semester_id))
 
     def _action_btn(self, parent, text, color, cmd):
         ctk.CTkButton(
-            parent, text=text, width=40, height=30, 
+            parent, text=text, width=40, height=26, 
             fg_color="transparent", text_color=color, hover_color="#F3F4F6",
             font=("Arial", 11, "bold"), command=cmd
         ).pack(side="left", padx=2)
@@ -159,10 +170,10 @@ class SemesterDialog(ctk.CTkToplevel):
         # Status
         ctk.CTkLabel(self, text="Status", font=("Arial", 12, "bold"), text_color="#374151").pack(anchor="w", padx=40, pady=(15, 5))
         self.combo_status = ctk.CTkComboBox(
-            self, values=["OPEN", "CLOSED"], width=320, height=40, 
+            self, values=["OPEN", "CLOSED"], height=40, 
             state="readonly", border_color="#E5E7EB", fg_color="white", text_color="black"
         )
-        self.combo_status.pack(padx=40)
+        self.combo_status.pack(fill="x", padx=40)
 
         # Buttons
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -186,8 +197,8 @@ class SemesterDialog(ctk.CTkToplevel):
 
     def create_input(self, label, placeholder):
         ctk.CTkLabel(self, text=label, font=("Arial", 12, "bold"), text_color="#374151").pack(anchor="w", padx=40, pady=(10, 5))
-        entry = ctk.CTkEntry(self, placeholder_text=placeholder, width=320, height=40, border_color="#E5E7EB")
-        entry.pack(padx=40)
+        entry = ctk.CTkEntry(self, placeholder_text=placeholder, height=40, border_color="#E5E7EB")
+        entry.pack(fill="x", padx=40)
         return entry
 
     def save(self):

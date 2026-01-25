@@ -40,6 +40,10 @@ class LecturersFrame(ctk.CTkFrame):
             width=300, height=40, border_color="#E5E7EB", border_width=1
         )
         self.search_ent.pack(side="left")
+        self.search_ent.bind("<Return>", lambda e: self.perform_search())
+        
+        btn_search = ctk.CTkButton(toolbar, text="Search", width=60, height=40, fg_color="#0F766E", command=self.perform_search)
+        btn_search.pack(side="left", padx=5)
         
         btn_add = ctk.CTkButton(
             toolbar, text="+ Add Lecturer", fg_color="#0F766E", hover_color="#115E59", height=40,
@@ -95,13 +99,18 @@ class LecturersFrame(ctk.CTkFrame):
             tk_root=self.winfo_toplevel()
         )
     
+    def perform_search(self):
+        self.current_page = 1
+        self.load_data()
+
     def _fetch_lecturers(self):
         try:
+            search_query = self.search_ent.get().strip()
             # 1. Get current page data
-            lecturers = self.controller.get_all_lecturers(page=self.current_page, per_page=self.per_page)
+            lecturers, total_items = self.controller.get_all_lecturers(
+                page=self.current_page, per_page=self.per_page, search_query=search_query
+            )
             
-            # 2. Get total count to calculate total_pages
-            total_items = self.controller.get_total_lecturers()
             total_pages = (total_items + self.per_page - 1) // self.per_page
             
             return {
@@ -224,6 +233,8 @@ class LecturerDialog(ctk.CTkToplevel):
         # Form fields
         form = ctk.CTkFrame(self, fg_color="transparent")
         form.pack(fill="both", expand=True, padx=40)
+        form.grid_columnconfigure(0, weight=1)
+        form.grid_columnconfigure(1, weight=1)
 
         self.ent_id = self._add_field(form, 0, 0, "Lecturer ID", "e.g. L101")
         self.ent_name = self._add_field(form, 0, 1, "Full Name", "e.g. Phan Gia Kiet")
@@ -232,10 +243,9 @@ class LecturerDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(form, text="Department", font=("Arial", 12, "bold"), text_color="#374151").grid(row=4, column=0, sticky="w", pady=(10, 5))
         self.combo_dept = ctk.CTkComboBox( # Department dropdown
-            form, values=dept_names, 
-            width=300, height=40, border_color="#E5E7EB", fg_color="white", text_color="black"
+            form, values=dept_names, height=40, border_color="#E5E7EB", fg_color="white", text_color="black"
         )
-        self.combo_dept.grid(row=5, column=0, sticky="w", padx=(0, 20))
+        self.combo_dept.grid(row=5, column=0, sticky="ew", padx=(0, 20))
 
         self.ent_degree = self._add_field(form, 2, 1, "Academic Degree", "e.g. Ph.D. in AI")
 
@@ -273,9 +283,9 @@ class LecturerDialog(ctk.CTkToplevel):
         self.after(100, lambda: [self.focus_force(), self.grab_set()])
 
     def _add_field(self, parent, r, c, label, placeholder):
-        ctk.CTkLabel(parent, text=label, font=("Arial", 12, "bold"), text_color="#374151").grid(row=r*2, column=c, sticky="w", pady=(10, 5))
-        ent = ctk.CTkEntry(parent, placeholder_text=placeholder, width=300, height=40, border_color="#E5E7EB")
-        ent.grid(row=r*2+1, column=c, sticky="w", padx=(0 if c==0 else 20, 0))
+        ctk.CTkLabel(parent, text=label, font=("Arial", 12, "bold"), text_color="#374151").grid(row=r*2, column=c, sticky="w", pady=(10, 5), padx=(0 if c==0 else 20, 0))
+        ent = ctk.CTkEntry(parent, placeholder_text=placeholder, height=40, border_color="#E5E7EB")
+        ent.grid(row=r*2+1, column=c, sticky="ew", padx=(0 if c==0 else 20, 0))
         return ent
 
     def save(self):

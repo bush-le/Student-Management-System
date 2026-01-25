@@ -7,13 +7,13 @@ class DashboardRepository:
         using a single, efficient database query.
         """
         query = """
-            SELECT 'students' as item, COUNT(*) as count FROM students
+            SELECT 'students' as item, COUNT(*) as count FROM Students
             UNION ALL
-            SELECT 'lecturers' as item, COUNT(*) as count FROM lecturers
+            SELECT 'lecturers' as item, COUNT(*) as count FROM Lecturers
             UNION ALL
-            SELECT 'courses' as item, COUNT(*) as count FROM courses
+            SELECT 'courses' as item, COUNT(*) as count FROM Courses
             UNION ALL
-            SELECT 'classes' as item, COUNT(*) as count FROM course_classes;
+            SELECT 'classes' as item, COUNT(*) as count FROM Course_Classes;
         """
         stats = {'students': 0, 'lecturers': 0, 'courses': 0, 'classes': 0}
         try:

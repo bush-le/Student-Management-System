@@ -1,3 +1,4 @@
+from datetime import datetime
 from database.repositories.student_repo import StudentRepository
 from database.repositories.lecturer_repo import LecturerRepository
 from database.repositories.course_repo import CourseRepository
@@ -81,8 +82,8 @@ class AdminController:
     # =========================================================================
     # 1. STUDENT MANAGEMENT
     # =========================================================================
-    def get_all_students(self, page=1, per_page=15):
-        return self.student_repo.get_all(page=page, per_page=per_page)
+    def get_all_students(self, page=1, per_page=15, search_query=None):
+        return self.student_repo.get_all(page=page, per_page=per_page, search_query=search_query)
 
     def create_student(self, full_name, email, phone, student_code, dept_id, major, year):
         if not Validators.is_valid_email(email):
@@ -93,7 +94,7 @@ class AdminController:
 
         hashed_pw = Security.hash_password("123")
         new_student = Student(
-            user_data={"user_id": None, "username": student_code, "full_name": full_name, "email": email, "phone": phone, "role": "Student", "status": "ACTIVE"},
+            user_data={"user_id": None, "username": student_code, "password": hashed_pw, "full_name": full_name, "email": email, "phone": phone, "role": "Student", "status": "ACTIVE"},
             student_id=None, student_code=student_code, major=major, dept_id=dept_id, academic_year=year
         )
         return self.student_repo.add(new_student, hashed_pw)
@@ -149,8 +150,8 @@ class AdminController:
     # =========================================================================
     # 2. LECTURER MANAGEMENT
     # =========================================================================
-    def get_all_lecturers(self, page=1, per_page=15):
-        return self.lecturer_repo.get_all(page=page, per_page=per_page)
+    def get_all_lecturers(self, page=1, per_page=15, search_query=None):
+        return self.lecturer_repo.get_all(page=page, per_page=per_page, search_query=search_query)
 
     def get_total_lecturers(self):
         return self.lecturer_repo.count_all()
@@ -164,7 +165,7 @@ class AdminController:
 
         hashed_pw = Security.hash_password("123")
         new_lec = Lecturer(
-            user_data={"user_id": None, "username": lecturer_code, "full_name": full_name, "email": email, "phone": phone, "role": "Lecturer", "status": "ACTIVE"},
+            user_data={"user_id": None, "username": lecturer_code, "password": hashed_pw, "full_name": full_name, "email": email, "phone": phone, "role": "Lecturer", "status": "ACTIVE"},
             lecturer_id=None, lecturer_code=lecturer_code, dept_id=dept_id, degree=degree
         )
         return self.lecturer_repo.add(new_lec, hashed_pw)
@@ -191,8 +192,8 @@ class AdminController:
     # =========================================================================
     # 3. COURSE MANAGEMENT
     # =========================================================================
-    def get_all_courses(self, page=1, per_page=15):
-        return self.course_repo.get_all(page=page, per_page=per_page)
+    def get_all_courses(self, page=1, per_page=15, search_query=None):
+        return self.course_repo.get_all(page=page, per_page=per_page, search_query=search_query)
 
     def get_total_courses(self):
         return self.course_repo.count_all()
@@ -211,12 +212,33 @@ class AdminController:
     # =========================================================================
     # 4. SEMESTER MANAGEMENT
     # =========================================================================
-    def get_all_semesters(self):
-        return self.semester_repo.get_all()
+    def get_all_semesters(self, search_query=None):
+        return self.semester_repo.get_all(search_query=search_query)
 
     def create_semester(self, name, start, end):
         if not (Validators.is_valid_date(start) and Validators.is_valid_date(end)):
             return False, "Invalid date format (YYYY-MM-DD)"
+            
+        # Check for date overlap
+        try:
+            new_start = datetime.strptime(start, "%Y-%m-%d").date()
+            new_end = datetime.strptime(end, "%Y-%m-%d").date()
+            
+            if new_start > new_end:
+                return False, "Start date must be before End date."
+
+            existing_sems = self.semester_repo.get_all()
+            for sem in existing_sems:
+                sem_start = sem.start_date
+                sem_end = sem.end_date
+                if isinstance(sem_start, str): sem_start = datetime.strptime(sem_start, "%Y-%m-%d").date()
+                if isinstance(sem_end, str): sem_end = datetime.strptime(sem_end, "%Y-%m-%d").date()
+                
+                if new_start <= sem_end and new_end >= sem_start:
+                    return False, f"Conflict detected: The selected dates overlap with '{sem.name}'."
+        except ValueError:
+            return False, "Invalid date values."
+
         # Default status is OPEN
         return self.semester_repo.add(Semester(None, name, start, end, "OPEN"))
 
@@ -231,8 +253,8 @@ class AdminController:
     # =========================================================================
     # 5. CLASS MANAGEMENT
     # =========================================================================
-    def get_all_classes_details(self, page=1, per_page=15):
-        return self.class_repo.get_all_details(page=page, per_page=per_page)
+    def get_all_classes_details(self, page=1, per_page=15, search_query=None):
+        return self.class_repo.get_all_details(page=page, per_page=per_page, search_query=search_query)
 
     def get_total_classes(self):
         return self.class_repo.count_all()
@@ -254,14 +276,83 @@ class AdminController:
         return self.class_repo.add(new_cls)
 
     def update_class(self, class_id, room, schedule, capacity):
+        try:
+            new_capacity = int(capacity)
+        except ValueError:
+            return False, "Capacity must be a valid number."
+
+        # Check if new capacity is sufficient for current enrollment
+        current_cls = self.class_repo.get_by_id(class_id)
+        if current_cls and new_capacity < getattr(current_cls, 'current_enrolled', 0):
+            return False, "Update failed: Maximum capacity cannot be lower than the current number of enrolled students."
+
         # Create a dummy object containing only the information to be updated
         # class_repo.update needs to be adjusted to only update these fields, or pass all parameters
         # The repository's update method accepts a full object, but only these 3 fields are used for the update.
-        dummy_cls = CourseClass(class_id, None, None, room, schedule, capacity)
+        dummy_cls = CourseClass(class_id, None, None, room, schedule, new_capacity)
         return self.class_repo.update(dummy_cls)
 
     def assign_lecturer_to_class(self, class_id, lecturer_id):
+        # 1. Get target class info to check its schedule
+        target_class = self.class_repo.get_by_id(class_id)
+        if not target_class:
+            return False, "Class not found."
+        
+        # 2. Get lecturer's existing schedule
+        lecturer_schedule = self.class_repo.get_schedule_by_lecturer(lecturer_id)
+        
+        # 3. Check for conflicts
+        if self._check_schedule_conflict(target_class.schedule, lecturer_schedule, ignore_class_id=class_id):
+             return False, "Schedule conflict: Lecturer is already teaching at this time."
+
         return self.class_repo.assign_lecturer(class_id, lecturer_id)
+
+    def _check_schedule_conflict(self, new_schedule, existing_schedules, ignore_class_id=None):
+        if not new_schedule: return False
+        
+        try:
+            # Parse new schedule: "Monday 07:00-09:30"
+            new_parts = new_schedule.split(' ', 1)
+            if len(new_parts) != 2: return False
+            new_day = new_parts[0].strip()
+            new_time = new_parts[1].strip()
+            
+            new_start_str, new_end_str = new_time.split('-')
+            ns_h, ns_m = map(int, new_start_str.split(':'))
+            ne_h, ne_m = map(int, new_end_str.split(':'))
+            new_start = ns_h * 60 + ns_m
+            new_end = ne_h * 60 + ne_m
+            
+            for cls in existing_schedules:
+                # Skip the class being updated (if re-assigning same lecturer)
+                if ignore_class_id and str(cls.get('class_id')) == str(ignore_class_id):
+                    continue
+
+                existing_sched_str = cls.get('schedule')
+                if not existing_sched_str: continue
+                
+                ex_parts = existing_sched_str.split(' ', 1)
+                if len(ex_parts) != 2: continue
+                ex_day = ex_parts[0].strip()
+                
+                if new_day.lower() != ex_day.lower(): continue
+                
+                ex_time = ex_parts[1].strip()
+                ex_start_str, ex_end_str = ex_time.split('-')
+                es_h, es_m = map(int, ex_start_str.split(':'))
+                ee_h, ee_m = map(int, ex_end_str.split(':'))
+                ex_start = es_h * 60 + es_m
+                ex_end = ee_h * 60 + ee_m
+                
+                # Overlap check: Start1 < End2 AND Start2 < End1
+                if new_start < ex_end and ex_start < new_end:
+                    return True
+                    
+        except Exception as e:
+            print(f"Error checking schedule conflict: {e}")
+            return False
+            
+        return False
 
     def delete_class(self, class_id):
         return self.class_repo.delete(class_id)
@@ -269,8 +360,8 @@ class AdminController:
     # =========================================================================
     # 6. ANNOUNCEMENT MANAGEMENT
     # =========================================================================
-    def get_all_announcements(self):
-        return self.ann_repo.get_all()
+    def get_all_announcements(self, search_query=None):
+        return self.ann_repo.get_all(search_query=search_query)
 
     def create_announcement(self, title, content, officer_id):
         return self.ann_repo.add(Announcement(None, title, content, None, officer_id))

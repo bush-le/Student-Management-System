@@ -2,18 +2,33 @@ from database.repository import BaseRepository
 from models.academic.course import Course
 
 class CourseRepository(BaseRepository):
-    def get_all(self, page=None, per_page=None):
-        sql = "SELECT * FROM Courses ORDER BY course_code ASC"
-        params = ()
+    def get_all(self, page=None, per_page=None, search_query=None):
+        sql = "SELECT SQL_CALC_FOUND_ROWS * FROM Courses"
+        params = []
+        
+        if search_query:
+            sql += " WHERE (course_code LIKE %s OR course_name LIKE %s) "
+            term = f"%{search_query}%"
+            params.extend([term, term])
+            
+        sql += " ORDER BY course_code ASC"
         
         # Add LIMIT OFFSET if pagination is enabled
         if page is not None and per_page is not None:
             offset = (page - 1) * per_page
             sql += " LIMIT %s OFFSET %s"
-            params = (per_page, offset)
+            params.extend([per_page, offset])
             
-        rows = self.execute_query(sql, params, fetch_all=True)
-        return [Course.from_db_row(row) for row in rows]
+        conn = self.db.get_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(sql, tuple(params))
+            rows = cursor.fetchall()
+            cursor.execute("SELECT FOUND_ROWS() as total")
+            total = cursor.fetchone()['total']
+            return [Course.from_db_row(row) for row in rows], total
+        finally:
+            conn.close()
 
     def get_by_id(self, course_id):
         sql = "SELECT * FROM Courses WHERE course_id = %s"

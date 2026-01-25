@@ -56,7 +56,8 @@ class AuthController:
                 msg = "Account locked due to multiple failed attempts (30 mins)."
             else:
                 self.user_repo.update_login_stats(user.user_id, new_attempts, user.status, user.lockout_time)
-                msg = "Invalid username or password."
+                remaining = 5 - new_attempts
+                msg = f"Invalid username or password. Remaining attempts: {remaining}"
             
             return None, msg
 
@@ -102,7 +103,7 @@ class AuthController:
             return False, "Invalid request."
         
         if datetime.now() > user.reset_token_expiry:
-            return False, "Code expired."
+            return False, "The recovery OTP has expired. Please request a new one."
             
         # PARAMETER ORDER CORRECTED: verify_password(HASH_TOKEN, OTP_INPUT)
         if not Security.verify_password(user.reset_token, otp): 

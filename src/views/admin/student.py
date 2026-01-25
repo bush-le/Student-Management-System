@@ -39,6 +39,10 @@ class StudentsFrame(ctk.CTkFrame):
             width=300, height=40, border_color="#E5E7EB", border_width=1
         )
         self.search_ent.pack(side="left")
+        self.search_ent.bind("<Return>", lambda e: self.perform_search())
+        
+        btn_search = ctk.CTkButton(toolbar, text="Search", width=60, height=40, fg_color="#0F766E", command=self.perform_search)
+        btn_search.pack(side="left", padx=5)
         
         btn_import = ctk.CTkButton(
             toolbar, text="Import CSV", fg_color="white", text_color="#333", 
@@ -94,6 +98,10 @@ class StudentsFrame(ctk.CTkFrame):
         )
         self.next_btn.pack(side="left", padx=5)
 
+    def perform_search(self):
+        self.current_page = 1
+        self.load_data()
+
     def load_data(self):
         """Clears old data and displays loading indicator"""
         for widget in self.table_frame.winfo_children(): widget.destroy()
@@ -110,10 +118,12 @@ class StudentsFrame(ctk.CTkFrame):
     def _fetch_students(self):
         """Fetches paginated data using a single efficient call.""" 
         try:
+            search_query = self.search_ent.get().strip()
             # OPTIMIZED: Get both data and total count in one call
             students, total_items = self.controller.get_all_students(
                 page=self.current_page, 
-                per_page=self.per_page
+                per_page=self.per_page,
+                search_query=search_query
             )
             
             total_pages = (total_items + self.per_page - 1) // self.per_page
@@ -260,7 +270,7 @@ class StudentDialog(ctk.CTkToplevel):
         self.dept_map = {d.dept_name: d.dept_id for d in self.departments}
         dept_names = list(self.dept_map.keys())
         
-        self.geometry("700x450")
+        self.geometry("700x550")
         self.resizable(False, False)
         self.transient(parent)
         
@@ -270,6 +280,8 @@ class StudentDialog(ctk.CTkToplevel):
         # Form Container (Grid layout 2 columns)
         form = ctk.CTkFrame(self, fg_color="transparent")
         form.pack(fill="both", expand=True, padx=30)
+        form.grid_columnconfigure(0, weight=1)
+        form.grid_columnconfigure(1, weight=1)
 
         # Fields
         self.ent_name = self._add_field(form, 0, 0, "Full Name", "e.g. Nguyen Van A")
@@ -281,20 +293,25 @@ class StudentDialog(ctk.CTkToplevel):
         self.ent_year = self._add_field(form, 2, 1, "Academic Year", "2024")
         
         # Dept Dropdown (Real Data)
-        ctk.CTkLabel(form, text="Department", font=("Arial", 12, "bold"), text_color="#555").grid(row=3, column=0, sticky="w", pady=(10, 5))
-        self.combo_dept = ctk.CTkComboBox(form, values=dept_names, width=300, height=35)
-        self.combo_dept.grid(row=4, column=0, sticky="w", padx=(0, 10))
+        ctk.CTkLabel(form, text="Department", font=("Arial", 12, "bold"), text_color="#555").grid(row=6, column=0, sticky="w", pady=(10, 5))
+        self.combo_dept = ctk.CTkComboBox(form, values=dept_names, height=35)
+        self.combo_dept.grid(row=7, column=0, sticky="ew", padx=(0, 10))
 
         # Status Dropdown
-        ctk.CTkLabel(form, text="Enrollment Status", font=("Arial", 12, "bold"), text_color="#555").grid(row=3, column=1, sticky="w", pady=(10, 5)) # Enrollment Status label
-        self.combo_status = ctk.CTkComboBox(form, values=["Active", "On Leave", "Dropped", "Graduated"], width=300, height=35)
-        self.combo_status.grid(row=4, column=1, sticky="w", padx=(10, 0))
+        ctk.CTkLabel(form, text="Enrollment Status", font=("Arial", 12, "bold"), text_color="#555").grid(row=6, column=1, sticky="w", pady=(10, 5), padx=(10, 0)) # Enrollment Status label
+        self.combo_status = ctk.CTkComboBox(form, values=["Active", "On Leave", "Dropped", "Graduated"], height=35)
+        self.combo_status.grid(row=7, column=1, sticky="ew", padx=(10, 0))
+        self.combo_status.set("Active")
         
         # Buttons
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(fill="x", padx=30, pady=30)
-        ctk.CTkButton(btn_frame, text="Cancel", fg_color="white", border_color="#DDD", border_width=1, text_color="black", command=self.destroy).pack(side="left")
-        ctk.CTkButton(btn_frame, text="Save Student", fg_color="#0F766E", command=self.save).pack(side="right")
+        
+        ctk.CTkButton(btn_frame, text="Cancel", fg_color="white", border_color="#D1D5DB", border_width=1, 
+                      text_color="black", hover_color="#F3F4F6", width=100, height=40, command=self.destroy).pack(side="left")
+        
+        ctk.CTkButton(btn_frame, text="Save Student", fg_color="#0F766E", hover_color="#115E59", 
+                      width=200, height=40, font=("Arial", 13, "bold"), command=self.save).pack(side="right")
 
         # Fill Data if Edit
         if data:
@@ -319,9 +336,9 @@ class StudentDialog(ctk.CTkToplevel):
         self.after(100, lambda: [self.focus_force(), self.grab_set()])
 
     def _add_field(self, parent, r, c, label, placeholder):
-        ctk.CTkLabel(parent, text=label, font=("Arial", 12, "bold"), text_color="#555").grid(row=r*2, column=c, sticky="w", pady=(10, 5))
-        ent = ctk.CTkEntry(parent, placeholder_text=placeholder, width=300, height=35)
-        ent.grid(row=r*2+1, column=c, sticky="w", padx=(0 if c==0 else 10, 0))
+        ctk.CTkLabel(parent, text=label, font=("Arial", 12, "bold"), text_color="#555").grid(row=r*2, column=c, sticky="w", pady=(10, 5), padx=(0 if c==0 else 10, 0))
+        ent = ctk.CTkEntry(parent, placeholder_text=placeholder, height=35)
+        ent.grid(row=r*2+1, column=c, sticky="ew", padx=(0 if c==0 else 10, 0))
         return ent
 
     def save(self):
@@ -332,6 +349,17 @@ class StudentDialog(ctk.CTkToplevel):
             messagebox.showerror("Error", "Please select a valid department", parent=self)
             return
         
+        # Validate inputs
+        if not self.ent_name.get() or not self.ent_id.get() or not self.ent_email.get():
+            messagebox.showwarning("Warning", "Please fill in all required fields.", parent=self)
+            return
+            
+        try:
+            int(self.ent_year.get())
+        except ValueError:
+            messagebox.showwarning("Warning", "Academic Year must be a number.", parent=self)
+            return
+
         # Get UI data before entering thread (as threads should not interact with UI directly)
         data_payload = {
             'full_name': self.ent_name.get(),

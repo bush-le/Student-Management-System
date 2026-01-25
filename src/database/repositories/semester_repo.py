@@ -2,9 +2,14 @@ from database.repository import BaseRepository
 from models.academic.semester import Semester
 
 class SemesterRepository(BaseRepository):
-    def get_all(self):
-        sql = "SELECT * FROM Semesters ORDER BY start_date DESC"
-        return [Semester.from_db_row(row) for row in self.execute_query(sql, fetch_all=True)]
+    def get_all(self, search_query=None):
+        sql = "SELECT * FROM Semesters"
+        params = []
+        if search_query:
+            sql += " WHERE name LIKE %s"
+            params.append(f"%{search_query}%")
+        sql += " ORDER BY start_date DESC"
+        return [Semester.from_db_row(row) for row in self.execute_query(sql, tuple(params), fetch_all=True)]
 
     def get_by_id(self, semester_id):
         sql = "SELECT * FROM Semesters WHERE semester_id = %s"

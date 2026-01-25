@@ -48,7 +48,7 @@ class LecturerClassesFrame(ctk.CTkFrame):
 
     def _fetch_classes(self, force):
         try:
-            schedule = self.controller.get_teaching_schedule(force_update=force)
+            schedule = self.controller.get_teaching_schedule(force_update=force, active_only=False)
             # OPTIMIZATION: Deduplicate classes. 
             # The schedule may contain multiple slots for the same class (e.g. Mon & Wed).
             unique_classes = {}
@@ -81,6 +81,7 @@ class LecturerClassesFrame(ctk.CTkFrame):
         h.pack(fill="x", padx=20, pady=(20, 10))
         ctk.CTkLabel(h, text=data.get('course_name'), font=("Arial", 16, "bold"), text_color="#0F766E").pack(anchor="w")
         ctk.CTkLabel(h, text=f"ID: {data.get('class_id')}", font=("Arial", 12, "bold"), text_color="gray").pack(anchor="w")
+        ctk.CTkLabel(h, text=f"{data.get('semester_name', '')}", font=("Arial", 11, "italic"), text_color="gray").pack(anchor="w")
         
         # Info
         info = ctk.CTkFrame(card, fg_color="transparent")

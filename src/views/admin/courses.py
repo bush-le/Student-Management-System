@@ -236,12 +236,6 @@ class CourseDialog(ctk.CTkToplevel):
         self.ent_name = self._add_field(form, 0, 1, "Course Name", "Introduction to Programming")
         self.ent_credits = self._add_field(form, 1, 0, "Credits", "3")
         
-        ctk.CTkLabel(form, text="Course Type", font=("Arial", 12, "bold"), text_color="#374151").grid(row=2, column=1, sticky="w", pady=(10, 5), padx=(10, 0)) # Course type label
-        self.combo_type = ctk.CTkComboBox(
-            form, values=["Core", "Elective", "Major Required"], height=40, border_color="#E5E7EB", fg_color="white", text_color="black"
-        )
-        self.combo_type.grid(row=3, column=1, sticky="ew", padx=(10, 0))
-
         ctk.CTkLabel(form, text="Description", font=("Arial", 12, "bold"), text_color="#374151").grid(row=4, column=0, sticky="w", pady=(10, 5)) # Description label
         self.txt_desc = ctk.CTkTextbox(form, height=60, border_color="#E5E7EB", border_width=1, fg_color="white", text_color="black")
         self.txt_desc.grid(row=5, column=0, columnspan=2, sticky="ew")
@@ -260,8 +254,6 @@ class CourseDialog(ctk.CTkToplevel):
             self.ent_code.insert(0, data.course_code)
             self.ent_name.insert(0, data.course_name)
             self.ent_credits.insert(0, str(data.credits))
-            if hasattr(data, 'course_type') and data.course_type:
-                self.combo_type.set(data.course_type)
             self.txt_desc.insert("0.0", data.description if data.description else '')
             self.ent_prereq.insert(0, data.prerequisites_id if hasattr(data, 'prerequisites_id') and data.prerequisites_id else '')
             self.ent_code.configure(state="disabled")
@@ -282,8 +274,6 @@ class CourseDialog(ctk.CTkToplevel):
             messagebox.showwarning("Input Error", "Credits must be a number", parent=self)
             return
 
-        course_type = self.combo_type.get()
-
         # Gather data from widgets in the main thread (Thread Safety)
         code = self.ent_code.get()
         name = self.ent_name.get()
@@ -292,13 +282,14 @@ class CourseDialog(ctk.CTkToplevel):
 
         def _save_task():
             if self.data:
+                c_type = getattr(self.data, 'course_type', 'Core')
                 return self.controller.update_course(
                     self.data.course_id, code, name,
-                    credits, course_type, desc, prereq
+                    credits, c_type, desc, prereq
                 )
             else:
                 return self.controller.create_course(
-                    code, name, credits, course_type,
+                    code, name, credits, "Core",
                     desc, prereq
                 )
 

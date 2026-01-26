@@ -46,3 +46,12 @@ Student Management System (Desktop App) built with Python and MySQL, supporting 
    ```bash
    python src/main.py
    ```
+
+## 📦 Running Executables (Windows/Linux)
+
+If you prefer running pre-built binaries instead of setting up the Python environment:
+
+1. **Download**: Get the `.exe` (Windows) or binary file (Linux) from the releases.
+2. **Configuration**: The application still requires a database connection.
+   - **Important**: Place your configured `.env` file in the same directory as the executable file.
+3. **Launch**: Run the executable file directly.

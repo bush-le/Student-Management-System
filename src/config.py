@@ -1,8 +1,21 @@
 # Configuration settings
 import os
+import sys
 from dotenv import load_dotenv
 
-load_dotenv()
+
+# --- IMPORTANT: Path handling for .env file ---
+# This ensures that the .env file is found whether running from source code or a frozen executable (e.g., PyInstaller).
+if getattr(sys, 'frozen', False):
+    # If the application is running as a bundled executable, the path is relative to the executable.
+    application_path = os.path.dirname(sys.executable)
+else:
+    # If running as a normal script, the path is relative to this file.
+    application_path = os.path.dirname(os.path.abspath(__file__))
+
+dotenv_path = os.path.join(application_path, '.env')
+load_dotenv(dotenv_path)
+# ------------------------------------------------
 
 class Config:
     DB_HOST = os.getenv("MYSQLHOST") or os.getenv("DB_HOST", "localhost")

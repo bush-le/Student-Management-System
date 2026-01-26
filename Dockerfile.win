@@ -1,0 +1,27 @@
+FROM tobix/pywine:3.10
+
+USER root
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN wine python -m pip install --upgrade pip setuptools wheel pyinstaller && \
+    wine python -m pip install --no-cache-dir -r requirements.txt
+
+# Copy source
+COPY src/ .
+
+# ONLY pass args to ENTRYPOINT (wine pyinstaller)
+ENTRYPOINT []
+
+CMD [ \
+    "wine", "python", "-m", "PyInstaller", \
+    "--clean", \
+    "--noconsole", \
+    "--onefile", \
+    "--name=StudentManager_Win", \
+    "--collect-all", "customtkinter", \
+    "--hidden-import", "mysql.connector", \
+    "src/main.py" \
+]

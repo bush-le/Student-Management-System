@@ -1,0 +1,34 @@
+# Use a clean Python Slim image
+FROM python:3.11-slim
+
+# Install system dependencies for GUI and PyInstaller
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    python3-tk \
+    tk-dev \
+    tcl-dev \
+    libx11-6 \
+    binutils \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+
+# Copy and install libraries
+COPY requirements.txt .
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt pyinstaller
+
+# Copy project
+COPY . .
+
+# Command to generate the Linux Binary
+CMD [ \
+    "pyinstaller", \
+    "--clean", \
+    "--noconsole", \
+    "--onefile", \
+    "--name=StudentManager_Linux", \
+    "--collect-all", "customtkinter", \
+    "--hidden-import", "mysql.connector", \
+    "src/main.py" \
+]
